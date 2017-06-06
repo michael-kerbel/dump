@@ -8,7 +8,7 @@
 	<parent>
 		<groupId>mkr</groupId>
 		<artifactId>util-pom</artifactId>
-		<version>1.20170504.1</version>                
+		<version>1.20170606.1</version>                
 	</parent>
 
 	<dependencies>
