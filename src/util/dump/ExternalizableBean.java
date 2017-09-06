@@ -54,6 +54,8 @@ import util.dump.ExternalizationHelper.BytesCache;
 import util.dump.ExternalizationHelper.ClassConfig;
 import util.dump.ExternalizationHelper.FieldType;
 import util.dump.ExternalizationHelper.StreamCache;
+import util.dump.stream.SingleTypeObjectInputStream;
+import util.dump.stream.SingleTypeObjectOutputStream;
 import util.reflection.FieldAccessor;
 
 
@@ -162,6 +164,14 @@ public interface ExternalizableBean extends Externalizable {
        * Doing so will corrupt old data dumps.       
        */
       public byte value();
+   }
+
+   /** Clones this instance by externalizing it to bytes and reading these bytes again.
+    *  This leads to a deep copy, but only for all fields annotated by @externalize(.). */
+   public default <T extends ExternalizableBean> T cloneDeeply(){
+      byte[] bytes = SingleTypeObjectOutputStream.writeSingleInstance(this);
+      ExternalizableBean clone = SingleTypeObjectInputStream.readSingleInstance(this.getClass(), bytes);
+      return (T)clone;
    }
 
 
