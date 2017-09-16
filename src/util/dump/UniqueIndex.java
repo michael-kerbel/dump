@@ -1,6 +1,7 @@
 package util.dump;
 
 import java.io.BufferedInputStream;
+import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.FileInputStream;
@@ -218,6 +219,8 @@ public class UniqueIndex<E> extends DumpIndex<E> {
       }
    }
 
+   protected void cachePayload( long pos, Object payload ) {}
+
    @Override
    protected String getIndexType() {
       return UniqueIndex.class.getSimpleName();
@@ -320,6 +323,9 @@ public class UniqueIndex<E> extends DumpIndex<E> {
             try {
                in = new DataInputStream(new BufferedInputStream(new FileInputStream(getLookupFile())));
                while ( true ) {
+                  Object payload = readPayload(in);
+                  if(payload != null)
+                     mayEOF = false;
                   int key = in.readInt();
                   mayEOF = false;
                   long pos = in.readLong();
@@ -333,6 +339,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
                   }
                   if ( !_dump._deletedPositions.contains(pos) ) {
                      _lookupInt.put(key, pos);
+                     cachePayload(pos, payload);
                   }
                }
             }
@@ -362,6 +369,9 @@ public class UniqueIndex<E> extends DumpIndex<E> {
             try {
                in = new DataInputStream(new BufferedInputStream(new FileInputStream(getLookupFile())));
                while ( true ) {
+                  Object payload = readPayload(in);
+                  if(payload != null)
+                     mayEOF = false;
                   long key = in.readLong();
                   mayEOF = false;
                   long pos = in.readLong();
@@ -375,6 +385,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
                   }
                   if ( !_dump._deletedPositions.contains(pos) ) {
                      _lookupLong.put(key, pos);
+                     cachePayload(pos, payload);
                   }
                }
             }
@@ -404,6 +415,9 @@ public class UniqueIndex<E> extends DumpIndex<E> {
             try {
                in = new DataInputStream(new BufferedInputStream(new FileInputStream(getLookupFile())));
                while ( true ) {
+                  Object payload = readPayload(in);
+                  if(payload != null)
+                     mayEOF = false;
                   String key = in.readUTF();
                   mayEOF = false;
                   long pos = in.readLong();
@@ -417,6 +431,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
                   }
                   if ( !_dump._deletedPositions.contains(pos) ) {
                      _lookupObject.put(key, pos);
+                     cachePayload(pos, payload);
                   }
                }
             }
@@ -455,6 +470,9 @@ public class UniqueIndex<E> extends DumpIndex<E> {
             }
             try {
                while ( true ) {
+                  Object payload = readPayload(in);
+                  if(payload != null)
+                     mayEOF = false;
                   Object key = in.readObject();
                   mayEOF = false;
                   long pos = in.readLong();
@@ -468,6 +486,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
                   }
                   if ( !_dump._deletedPositions.contains(pos) ) {
                      _lookupObject.put(key, pos);
+                     cachePayload(pos, payload);
                   }
                }
             }
@@ -499,7 +518,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
             }
          }
       }
-   };
+   }
 
    protected long readNextPosition( DataInputStream updatesInput ) {
       if ( updatesInput == null ) {
@@ -514,6 +533,10 @@ public class UniqueIndex<E> extends DumpIndex<E> {
       catch ( IOException argh ) {
          throw new RuntimeException("Failed to read updates from " + getUpdatesFile(), argh);
       }
+   }
+
+   protected Object readPayload( DataInput in ) throws IOException {
+      return null;
    }
 
    @Override
