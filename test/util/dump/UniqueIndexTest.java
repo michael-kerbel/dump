@@ -1,8 +1,6 @@
 package util.dump;
 
 import static org.fest.assertions.Assertions.assertThat;
-import gnu.trove.set.TIntSet;
-import gnu.trove.set.hash.TIntHashSet;
 
 import java.io.File;
 import java.io.FileFilter;
@@ -13,8 +11,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Random;
 
-import junit.framework.Assert;
-
 import org.fest.util.Arrays;
 import org.junit.After;
 import org.junit.Before;
@@ -24,6 +20,9 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
+import gnu.trove.set.TIntSet;
+import gnu.trove.set.hash.TIntHashSet;
+import junit.framework.Assert;
 import util.reflection.FieldFieldAccessor;
 import util.reflection.Reflection;
 
@@ -39,7 +38,7 @@ public class UniqueIndexTest {
 
    @Parameters
    public static Collection<Object[]> getDumpSizesToTestFor() {
-      List<Object[]> parameters = new ArrayList<Object[]>();
+      List<Object[]> parameters = new ArrayList<>();
       parameters.add(Arrays.array(10));
       parameters.add(Arrays.array(1000));
       parameters.add(Arrays.array(100000));
@@ -57,7 +56,7 @@ public class UniqueIndexTest {
    }
 
 
-   private Random    _random;
+   private Random _random;
 
    private final int _dumpSize;
 
@@ -112,7 +111,7 @@ public class UniqueIndexTest {
    @Test
    public void testGetNumKeys() throws Exception {
       File dumpFile = new File(_tmpdir, DUMP_FILENAME);
-      Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile);
+      Dump<Bean> dump = new Dump<>(Bean.class, dumpFile);
       try {
          int numBeansToAddForTest = 500;
          for ( int i = 0; i < numBeansToAddForTest; i++ ) {
@@ -121,11 +120,11 @@ public class UniqueIndexTest {
 
          // reopen dump
          dump.close();
-         dump = new Dump<Bean>(Bean.class, dumpFile);
+         dump = new Dump<>(Bean.class, dumpFile);
 
-         DumpIndex<Bean> intIndex = new UniqueIndex<Bean>(dump, "_idInt");
-         DumpIndex<Bean> longIndex = new UniqueIndex<Bean>(dump, "_idLong");
-         DumpIndex<Bean> stringIndex = new UniqueIndex<Bean>(dump, "_idString");
+         DumpIndex<Bean> intIndex = new UniqueIndex<>(dump, "_idInt");
+         DumpIndex<Bean> longIndex = new UniqueIndex<>(dump, "_idLong");
+         DumpIndex<Bean> stringIndex = new UniqueIndex<>(dump, "_idString");
 
          assertThat(longIndex.getNumKeys()).isEqualTo(numBeansToAddForTest);
          assertThat(intIndex.getNumKeys()).isEqualTo(numBeansToAddForTest);
@@ -185,10 +184,10 @@ public class UniqueIndexTest {
    public void testRecreateIndex() throws NoSuchFieldException, IOException {
       File dumpFile = new File(_tmpdir, DUMP_FILENAME);
 
-      Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile);
+      Dump<Bean> dump = new Dump<>(Bean.class, dumpFile);
       try {
          Field field = Reflection.getField(Bean.class, "_idInt");
-         UniqueIndex<Bean> index = new UniqueIndex<Bean>(dump, new FieldFieldAccessor(field));
+         UniqueIndex<Bean> index = new UniqueIndex<>(dump, new FieldFieldAccessor(field));
 
          validateNumKeys(dump, index);
 
@@ -199,11 +198,11 @@ public class UniqueIndexTest {
          dump.close();
 
          System.out.println("Closing and re-opening dump, deleting index");
-         Assert.assertTrue("Failed to delete index", new File(_tmpdir, DUMP_FILENAME + "._idInt.lookup").delete()
-            && !new File(_tmpdir, DUMP_FILENAME + "._idInt.lookup").exists());
+         Assert.assertTrue("Failed to delete index",
+            new File(_tmpdir, DUMP_FILENAME + "._idInt.lookup").delete() && !new File(_tmpdir, DUMP_FILENAME + "._idInt.lookup").exists());
 
-         dump = new Dump<Bean>(Bean.class, dumpFile);
-         index = new UniqueIndex<Bean>(dump, new FieldFieldAccessor(field));
+         dump = new Dump<>(Bean.class, dumpFile);
+         index = new UniqueIndex<>(dump, new FieldFieldAccessor(field));
 
          long t = System.currentTimeMillis();
          for ( int j = 0; j < READ_NUMBER; j++ ) {
@@ -243,10 +242,10 @@ public class UniqueIndexTest {
       deleteOldTestDumps();
 
       /* create dump and index */
-      Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile);
+      Dump<Bean> dump = new Dump<>(Bean.class, dumpFile);
       try {
          Field field = Reflection.getField(Bean.class, fieldName);
-         UniqueIndex<Bean> index = new UniqueIndex<Bean>(dump, new FieldFieldAccessor(field));
+         UniqueIndex<Bean> index = new UniqueIndex<>(dump, new FieldFieldAccessor(field));
 
          fillDump(dump);
 
@@ -258,8 +257,8 @@ public class UniqueIndexTest {
 
          System.out.println("Closing and re-opening dump");
 
-         dump = new Dump<Bean>(Bean.class, dumpFile);
-         index = new UniqueIndex<Bean>(dump, new FieldFieldAccessor(field));
+         dump = new Dump<>(Bean.class, dumpFile);
+         index = new UniqueIndex<>(dump, new FieldFieldAccessor(field));
 
          validateNumKeys(dump, index);
 
@@ -326,6 +325,16 @@ public class UniqueIndexTest {
             }
             id += 2;
          }
+         for ( Bean bean : dump ) {
+            id = bean._idInt;
+            if ( id > 0 && id % 7 == 0 ) {
+               /* update and change externalization size of bean */
+               Bean updatedBean = new Bean(-bean._idInt, bean._data.replaceFirst("-", "++"));
+               Bean oldVersion = dump.updateLast(updatedBean);
+               Assert.assertEquals("old bean != iterated bean", oldVersion, bean);
+               updates++;
+            }
+         }
          System.out.println("Iterated the whole dump. Updated " + updates + " items. Needed " + (System.currentTimeMillis() - t) + " ms.");
 
          validateNumKeys(dump, index);
@@ -336,8 +345,8 @@ public class UniqueIndexTest {
 
          System.out.println("Closing and re-opening dump");
 
-         dump = new Dump<Bean>(Bean.class, dumpFile);
-         index = new UniqueIndex<Bean>(dump, new FieldFieldAccessor(field));
+         dump = new Dump<>(Bean.class, dumpFile);
+         index = new UniqueIndex<>(dump, new FieldFieldAccessor(field));
 
          validateNumKeys(dump, index);
 
@@ -357,8 +366,8 @@ public class UniqueIndexTest {
             Assert.assertTrue("Failed to delete meta file " + df, df.delete());
          }
          /* re-open, enforcing the index to be re-created */
-         dump = new Dump<Bean>(Bean.class, dumpFile);
-         index = new UniqueIndex<Bean>(dump, new FieldFieldAccessor(field));
+         dump = new Dump<>(Bean.class, dumpFile);
+         index = new UniqueIndex<>(dump, new FieldFieldAccessor(field));
 
          validateNumKeys(dump, index);
 
@@ -389,12 +398,12 @@ public class UniqueIndexTest {
       File dumpFile = new File(_tmpdir, DUMP_FILENAME);
 
       /* create dump and index */
-      Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile);
+      Dump<Bean> dump = new Dump<>(Bean.class, dumpFile);
       try {
          Field field = Reflection.getField(Bean.class, fieldName);
 
          fillDump(dump);
-         UniqueIndex<Bean> index = new UniqueIndex<Bean>(dump, new FieldFieldAccessor(field));
+         UniqueIndex<Bean> index = new UniqueIndex<>(dump, new FieldFieldAccessor(field));
 
          testLookup(config, field, index);
       }
@@ -424,13 +433,17 @@ public class UniqueIndexTest {
       t = System.currentTimeMillis();
       for ( int j = 0; j < READ_NUMBER; j++ ) {
          id = _random.nextInt(_dumpSize);
-         if ( id % 3 == 0 ) {
+         if ( id % 3 == 0 || id % 7 == 0 ) {
             id = -id;
          }
          k = config.createKey(id);
          Bean bean = index.lookup(k);
          if ( id % 2 == 0 ) {
-            Assert.assertNull("deleted Bean with index " + k + " is still accessable", bean);
+            Assert.assertNull("deleted Bean with index " + k + " is still accessible", bean);
+         } else if ( id % 7 == 0 && id % 3 != 0 ) {
+            Assert.assertNotNull("no Bean for index " + k, bean);
+            Assert.assertEquals(config.createKey(id), field.get(bean));
+            Assert.assertTrue("bean data wrong: id=" + id + ", data=" + bean._data, bean._data.startsWith(-id + "++"));
          } else if ( Math.abs(id) % 3 == 0 ) {
             Assert.assertNotNull("no Bean for index " + k, bean);
             Assert.assertEquals(config.createKey(id), field.get(bean));
