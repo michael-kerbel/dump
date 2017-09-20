@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
@@ -66,14 +67,15 @@ import util.time.StopWatch;
  * To optimize speed, put only {@link Externalizable} objects of a single type into the dump.
  * The simplest way to do this, is to extend {@link ExternalizableBean} with your bean, and to use the
  * constructor {@link #Dump(Class, File)}. By using the other constructors you can provide a
- * {@link ObjectStreamProvider}, like {@link JavaObjectStreamProvider}, which allows you to put arbitrary
- * {@link Serializable} objects into the dump.<p/>
+ * {@link ObjectStreamProvider}, like {@link util.dump.stream.JavaObjectStreamProvider}, which allows you to put arbitrary
+ * {@link java.io.Serializable} objects into the dump.<p/>
  *
  * <b>Beware</b>: Always close the dump properly after usage and before exiting the JVM.<p/>
  */
+@SuppressWarnings({ "WeakerAccess", "unchecked", "unused" })
 public class Dump<E> implements DumpInput<E> {
 
-   private static final Logger          LOG                              = LoggerFactory.getLogger(Dump.class);
+   private static final Logger LOG = LoggerFactory.getLogger(Dump.class);
 
    // TODO add pack() and a threshold based repack mechanism which prunes deletions from dump and indexes
    // TODO add registry for Iterators and close all open iterators in close()
@@ -87,80 +89,78 @@ public class Dump<E> implements DumpInput<E> {
          .toArray(new DumpAccessFlag[DumpAccessFlag.values().length]);
 
    /** if the number of deleted elements exceeds the value of PRUNE_THRESHOLD, the dump is pruned during construction */
-   public static final int              PRUNE_THRESHOLD                  = 25000;
+   public static final int PRUNE_THRESHOLD = 25000;
 
-   private static final Set<String>     OPENED_DUMPPATHS                 = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
-   private static final Set<Dump>       OPENED_DUMPS                     = Collections.newSetFromMap(new ConcurrentHashMap<Dump, Boolean>());
+   private static final Set<String> OPENED_DUMPPATHS = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
+   private static final Set<Dump>   OPENED_DUMPS     = Collections.newSetFromMap(new ConcurrentHashMap<Dump, Boolean>());
+
 
    static {
-      Runtime.getRuntime().addShutdownHook(new Thread() {
-
-         @Override
-         public void run() {
-            for ( Dump openedDump : new HashSet<Dump>(OPENED_DUMPS) ) {
-               if ( openedDump._willBeClosedDuringShutdown ) {
-                  continue;
-               }
-               try {
-                  LOG.error("Dump instance " + openedDump.getDumpFile()
-                     + " was not closed correctly. This is a bug in its usage and might result in data loss! Closing it now...");
-                  openedDump.close();
-               }
-               catch ( IOException e ) {
-                  LOG.error("Failed to close dump " + openedDump.getDumpFile(), e);
-               }
+      Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+         for ( Dump openedDump : new HashSet<>(OPENED_DUMPS) ) {
+            if ( openedDump._willBeClosedDuringShutdown ) {
+               continue;
+            }
+            try {
+               LOG.error("Dump instance " + openedDump.getDumpFile()
+                  + " was not closed correctly. This is a bug in its usage and might result in data loss! Closing it now...");
+               openedDump.close();
+            }
+            catch ( IOException e ) {
+               LOG.error("Failed to close dump " + openedDump.getDumpFile(), e);
             }
          }
-      });
+      }));
    }
 
-   final Class                   _beanClass;
-   ObjectStreamProvider          _streamProvider;
-   final File                    _dumpFile;
-   File                          _deletionsFile;
-   File                          _metaFile;
-   Set<DumpIndex<E>>             _indexes                    = new HashSet<DumpIndex<E>>();
 
-   DumpWriter<E>                 _writer;
-   DumpReader<E>                 _reader;
-   PositionAwareOutputStream     _outputStream;
-   RandomAccessFile              _raf;
-   ResetableBufferedInputStream  _resetableBufferedInputStream;
-   DataOutputStream              _deletionsOutput;
-   TLongSet                      _deletedPositions           = new TLongHashSet();
+   final Class          _beanClass;
+   ObjectStreamProvider _streamProvider;
+   final File           _dumpFile;
+   File                 _deletionsFile;
+   File                 _metaFile;
+   Set<DumpIndex<E>>    _indexes = new HashSet<>();
+
+   DumpWriter<E>                _writer;
+   DumpReader<E>                _reader;
+   PositionAwareOutputStream    _outputStream;
+   RandomAccessFile             _raf;
+   ResetableBufferedInputStream _resetableBufferedInputStream;
+   DataOutputStream             _deletionsOutput;
+   TLongSet                     _deletedPositions = new TLongHashSet();
 
    /** The keys are positions in the dump file and the values are the bytes of the serialized item stored there.
     * Appended to these bytes is a space efficient encoding (see <code>longToBytes(long)</code>) of the next
     * item's position. */
-   Map<Long, byte[]>             _cache;
-   int                           _cacheSize;
-   ObjectInput                   _cacheObjectInput;
-   ResetableBufferedInputStream  _cacheByteInput;
-   Map<Long, byte[]>             _singleItemCache            = new HashMap<Long, byte[]>();
-   AtomicInteger                 _cacheLookups               = new AtomicInteger(0);
-   AtomicInteger                 _cacheHits                  = new AtomicInteger(0);
+   Map<Long, byte[]>            _cache;
+   int                          _cacheSize;
+   ObjectInput                  _cacheObjectInput;
+   ResetableBufferedInputStream _cacheByteInput;
+   Map<Long, byte[]>            _singleItemCache = new HashMap<>();
+   AtomicInteger                _cacheLookups    = new AtomicInteger(0);
+   AtomicInteger                _cacheHits       = new AtomicInteger(0);
 
-   ByteArrayOutputStream         _updateByteOutput;
-   ObjectOutput                  _updateOut;
-   RandomAccessFile              _updateRaf;
-   long                          _updateRafPosition;
+   ByteArrayOutputStream _updateByteOutput;
+   ObjectOutput          _updateOut;
+   RandomAccessFile      _updateRaf;
+   long                  _updateRafPosition;
 
-   boolean                       _isClosed;
+   boolean _isClosed;
 
-   ThreadLocal<Long>             _nextItemPos                = new LongThreadLocal();
-   ThreadLocal<Long>             _lastItemPos                = new LongThreadLocal();
+   ThreadLocal<Long> _nextItemPos = new LongThreadLocal();
+   ThreadLocal<Long> _lastItemPos = new LongThreadLocal();
 
    /** incremented on each write operation */
-   long                          _sequence                   = (long)(Math.random() * 1000000);
+   long _sequence = (long)(Math.random() * 1000000);
 
    final EnumSet<DumpAccessFlag> _mode;
 
-   RandomAccessFile              _metaRaf;
-   FileLock                      _dumpLock;
+   RandomAccessFile _metaRaf;
+   FileLock         _dumpLock;
 
-   boolean                       _willBeClosedDuringShutdown = false;
+   boolean _willBeClosedDuringShutdown = false;
 
-   String                        _instantiationDetails;
+   String _instantiationDetails;
 
 
    /**
@@ -233,10 +233,10 @@ public class Dump<E> implements DumpInput<E> {
          FileOutputStream fileOutputStream = new FileOutputStream(_dumpFile, true);
          BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(fileOutputStream, DumpWriter.DEFAULT_BUFFER_SIZE);
          _outputStream = new PositionAwareOutputStream(bufferedOutputStream, _dumpFile.length());
-         _writer = new DumpWriter<E>(_outputStream, 0, _streamProvider);
+         _writer = new DumpWriter<>(_outputStream, 0, _streamProvider);
          _raf = new RandomAccessFile(_dumpFile, "r");
          _updateRaf = new RandomAccessFile(_dumpFile, "rw");
-         _reader = new DumpReader<E>(_dumpFile, false, _streamProvider);
+         _reader = new DumpReader<>(_dumpFile, false, _streamProvider);
 
          initMeta();
 
@@ -304,6 +304,15 @@ public class Dump<E> implements DumpInput<E> {
    }
 
    /**
+    * clear the accumulated hit rate of the cache
+    * @see Dump#getCacheHitRate()
+    */
+   public void clearCacheHitRate() {
+      _cacheLookups.set(0);
+      _cacheHits.set(0);
+   }
+
+   /**
     * Closing a Dump is necessary in order to flush all corresponding streams. All registered {@link DumpIndex}es are closed as well.
     * No operations are allowed on a closed Dump instance.<p/>
     * <b>Failing to close the dump may result in data loss!</b>
@@ -344,7 +353,7 @@ public class Dump<E> implements DumpInput<E> {
          _metaRaf.close();
          _metaRaf = null;
       }
-      for ( DumpIndex index : new ArrayList<DumpIndex<E>>(_indexes) ) {
+      for ( DumpIndex index : new ArrayList<>(_indexes) ) {
          index.close();
       }
       OPENED_DUMPPATHS.remove(_dumpFile.getPath());
@@ -352,19 +361,10 @@ public class Dump<E> implements DumpInput<E> {
       _isClosed = true;
    }
 
-   /** 
-    * clear the accumulated hit rate of the cache
-    * @see Dump#getCacheHitRate() 
-    */
-   public void clearCacheHitRate() {
-      _cacheLookups.set(0);
-      _cacheHits.set(0);
-   }
-
    /**
     * Removes the element located at position <code>pos</code> from this dump.
     * Usually you use {@link Dump#deleteLast()} after iteration or index lookup of the element you want to delete.
-    * But with {@link Dump#iterateElementPositions(PositionIteratorCallback)} you could get access to the file position of
+    * But with {@link DumpIterator#getPosition()} or {@link DumpIndex#getAllPositions()} you could get access to the file position of
     * any element and thus use this method.
     * @return the deleted object
     * @throws RuntimeException if there is no element at <code>pos</code>
@@ -427,7 +427,7 @@ public class Dump<E> implements DumpInput<E> {
     */
    public void flush() throws IOException {
       _outputStream.flush();
-      for ( DumpIndex index : new ArrayList<DumpIndex<E>>(_indexes) ) {
+      for ( DumpIndex index : new ArrayList<>(_indexes) ) {
          index.flush();
       }
    }
@@ -442,7 +442,7 @@ public class Dump<E> implements DumpInput<E> {
          _deletionsOutput.flush();
       }
       writeMeta();
-      for ( DumpIndex index : new ArrayList<DumpIndex<E>>(_indexes) ) {
+      for ( DumpIndex index : new ArrayList<>(_indexes) ) {
          index.flushMeta();
       }
    }
@@ -453,8 +453,8 @@ public class Dump<E> implements DumpInput<E> {
     * when invoking this method. This method needs an IO operation, unless you specified a cache size greater 0 in the
     * constructor and the element at pos was retrieved recently.
     */
-   @Nullable
-   public E get( long pos ) {
+   @SuppressWarnings("UnnecessaryBoxing")
+   public @Nullable E get( long pos ) {
       if ( !_mode.contains(DumpAccessFlag.read) ) {
          throw new AccessControlException("Get operation not allowed with current modes.");
       }
@@ -472,7 +472,7 @@ public class Dump<E> implements DumpInput<E> {
                _lastItemPos.set(pos);
                _nextItemPos.set(getNextItemPos(bytes));
                if ( positionIsDeleted ) {
-                  return (E)null;
+                  return null;
                }
                return readFromBytes(bytes);
             }
@@ -512,7 +512,7 @@ public class Dump<E> implements DumpInput<E> {
                _resetableBufferedInputStream._lastElementBytesLength = 0;
                _lastItemPos.set(pos);
                if ( positionIsDeleted ) {
-                  return (E)null;
+                  return null;
                }
                return value;
             } else {
@@ -520,7 +520,7 @@ public class Dump<E> implements DumpInput<E> {
                _reader.next();
             }
 
-            return (E)null;
+            return null;
          }
          catch ( IOException argh ) {
             throw new RuntimeException("Failed to read from dump " + _dumpFile + " at position " + pos, argh);
@@ -576,7 +576,7 @@ public class Dump<E> implements DumpInput<E> {
     */
    @SuppressWarnings("resource")
    @Override
-   public DumpIterator<E> iterator() {
+   public @Nonnull DumpIterator<E> iterator() {
       assertOpen();
       try {
          flush();
@@ -589,7 +589,7 @@ public class Dump<E> implements DumpInput<E> {
 
    public MultithreadedDumpReader<E> multithreadedIterator( DumpIndex index ) {
       try {
-         return new MultithreadedDumpReader<E>(this, index);
+         return new MultithreadedDumpReader<>(this, index);
       }
       catch ( IOException argh ) {
          throw new RuntimeException("Failed to create a DumpReader.", argh);
@@ -628,7 +628,7 @@ public class Dump<E> implements DumpInput<E> {
     */
    public InfiniteSorter<E> sort( @Nullable Comparator<E> comparator, int maxItemsInMemory ) throws Exception {
       assertOpen();
-      InfiniteSorter<E> sorter = new InfiniteSorter<E>(maxItemsInMemory, _dumpFile.getParentFile());
+      InfiniteSorter<E> sorter = new InfiniteSorter<>(maxItemsInMemory, _dumpFile.getParentFile());
       if ( comparator != null ) {
          sorter.setComparator(comparator);
       }
@@ -642,8 +642,8 @@ public class Dump<E> implements DumpInput<E> {
    /**
     * Replaces the element at position <code>pos</code> with <code>newItem</code>.<p/>
     *
-    * Usually you use {@link Dump#updateLast()} after iteration or index lookup of the element you want to update.
-    * But with {@link Dump#iterateElementPositions(PositionIteratorCallback)} you could get access to the file position of
+    * Usually you use {@link Dump#updateLast(Object)} after iteration or index lookup of the element you want to update.
+    * But with {@link DumpIterator#getPosition()} or {@link DumpIndex#getAllPositions()} you could get access to the file position of
     * any element and thus use this method. <p/>
     *
     * <b>BEWARE</b>: After updates an item might be situated at the end of the dump.
@@ -807,7 +807,7 @@ public class Dump<E> implements DumpInput<E> {
       try {
          prunedDumpFile.deleteOnExit();
          DeletionAwareDumpReader input = new DeletionAwareDumpReader(_dumpFile, _streamProvider, _dumpFile.length());
-         DumpWriter<E> out = new DumpWriter<E>(prunedDumpFile, _streamProvider);
+         DumpWriter<E> out = new DumpWriter<>(prunedDumpFile, _streamProvider);
          out.writeAll(input);
          input.close();
          out.close();
@@ -1013,7 +1013,7 @@ public class Dump<E> implements DumpInput<E> {
    /**
     * This enum is used to control the access mode of a Dump instance.
     */
-   public static enum DumpAccessFlag {
+   public enum DumpAccessFlag {
       /** append new beans <b>at the end</b> of the dump  */
       add, //
       /** allow beans to be updated in case where the bean <b>length stays the same</b> */
@@ -1049,8 +1049,8 @@ public class Dump<E> implements DumpInput<E> {
       }
 
       @Override
-      public int compareTo( @Nullable ElementAndPosition<D> o ) {
-         return _position < o._position ? -1 : (_position == o._position ? 0 : 1);
+      public int compareTo( @Nonnull ElementAndPosition<D> o ) {
+         return Long.compare(_position, o._position);
       }
 
       public D getElement() {
@@ -1067,121 +1067,9 @@ public class Dump<E> implements DumpInput<E> {
       public abstract void element( E o, long pos );
    }
 
-   class DeletionAwareDumpReader extends DumpReader<E> implements DumpIterator<E> {
-
-      ResetableBufferedInputStream _positionAwareInputStream;
-      long                         _lastPos;
-      long                         _maxPos;
-      FileInputStream              _in;
-
-
-      public DeletionAwareDumpReader( File dumpFile, ObjectStreamProvider streamProvider ) throws IOException {
-         this(dumpFile, streamProvider, _outputStream._n);
-      }
-
-      private DeletionAwareDumpReader( File dumpFile, ObjectStreamProvider streamProvider, long maxPos ) throws IOException {
-         super(new ResetableBufferedInputStream(new FileInputStream(_dumpFile), 0, false), 0, streamProvider);
-         if ( !_mode.contains(DumpAccessFlag.read) ) {
-            throw new AccessControlException("Read operation not allowed with current modes.");
-         }
-         _positionAwareInputStream = (ResetableBufferedInputStream)_primitiveInputStream;
-         _positionAwareInputStream._lastElementBytes = new byte[1024];
-         _maxPos = maxPos;
-      }
-
-      @Override
-      public long getPosition() {
-         return _lastPos;
-      }
-
-      @Override
-      public boolean hasNext() {
-         synchronized ( Dump.this ) {
-            long pos = -1;
-            boolean hasNext = false;
-            do {
-               _positionAwareInputStream._lastElementBytesLength = 0;
-               pos = _positionAwareInputStream._rafPos;
-               hasNext = _maxPos > pos && super.hasNext();
-            }
-            while ( hasNext && _deletedPositions.contains(pos) && super.next() != null ); // condition 'super.next() != null' is just to move the Iterator on
-            _lastPos = pos;
-
-            _nextItemPos.set(_positionAwareInputStream._rafPos);
-            if ( hasNext && _cache != null ) {
-               // we don't cache E instances to prevent the user from changing the cached instances
-               byte[] nextItemPos = longToBytes(_nextItemPos.get());
-               byte[] lastElementBytes = new byte[_positionAwareInputStream._lastElementBytesLength + nextItemPos.length];
-               System.arraycopy(_positionAwareInputStream._lastElementBytes, 0, lastElementBytes, 0, _positionAwareInputStream._lastElementBytesLength);
-               appendNextItemPos(lastElementBytes, nextItemPos);
-               _cache.put(Long.valueOf(pos), lastElementBytes); // ugly boxing of pos necessary here, since _cache is a regular Map - the cost of beauty is ugliness
-            }
-            if ( !hasNext ) {
-               super.closeStreams(true);
-            }
-
-            _positionAwareInputStream._lastElementBytesLength = 0;
-
-            return hasNext;
-         }
-      }
-
-      @Override
-      public DumpIterator<E> iterator() {
-         return this;
-      }
-
-      @Override
-      public E next() {
-         _lastItemPos.set(_lastPos);
-         return super.next();
-      }
-   }
-
-   class PositionAwareOutputStream extends OutputStream {
-
-      long                       _n;
-
-      private final OutputStream _out;
-
-
-      public PositionAwareOutputStream( OutputStream out, long n ) {
-         _out = out;
-         _n = n;
-      }
-
-      @Override
-      public void close() throws IOException {
-         _out.close();
-      }
-
-      @Override
-      public void flush() throws IOException {
-         _out.flush();
-      }
-
-      @Override
-      public void write( @Nullable byte[] b ) throws IOException {
-         _out.write(b);
-         _n += b.length;
-      }
-
-      @Override
-      public void write( @Nullable byte[] b, int off, int len ) throws IOException {
-         _out.write(b, off, len);
-         _n += len;
-      }
-
-      @Override
-      public void write( int b ) throws IOException {
-         _out.write(b);
-         _n++;
-      }
-   }
-
    static class ResetableBufferedInputStream extends InputStream {
 
-      private static int      defaultBufferSize       = 256 * 1024; // this is enough, see http://nadeausoftware.com/articles/2008/02/java_tip_how_read_files_quickly
+      private static int defaultBufferSize = 256 * 1024; // this is enough, see http://nadeausoftware.com/articles/2008/02/java_tip_how_read_files_quickly
 
       /**
        * The internal buffer array where the data is stored. When necessary,
@@ -1199,7 +1087,7 @@ public class Dump<E> implements DumpInput<E> {
        * </code>contain buffered input data obtained
        * from the underlying  input stream.
        */
-      protected int           count;
+      protected int count;
 
       /**
        * The current position in the buffer. This is the index of the next
@@ -1216,19 +1104,19 @@ public class Dump<E> implements DumpInput<E> {
        *
        * @see     java.io.BufferedInputStream#buf
        */
-      protected int           pos;
+      protected int pos;
 
-      long                    _rafPos;
+      long _rafPos;
 
-      byte[]                  _lastElementBytes       = null;
-      int                     _lastElementBytesLength = 0;
+      byte[] _lastElementBytes       = null;
+      int    _lastElementBytesLength = 0;
 
-      boolean                 _suppressClose          = false;
+      boolean _suppressClose = false;
 
-      ByteBuffer              _bb;
-      FileChannel             _ch;
+      ByteBuffer  _bb;
+      FileChannel _ch;
 
-      FileInputStream         _fileInputStream;
+      FileInputStream _fileInputStream;
 
 
       /**
@@ -1239,7 +1127,7 @@ public class Dump<E> implements DumpInput<E> {
        * buffer array of length  <code>size</code>
        * is created and stored in <code>buf</code>.
        *
-       * @param   in     the underlying input stream.
+       * @param   ch     the underlying file channel
        * @param   size   the buffer size.
        * @exception IllegalArgumentException if size <= 0.
        */
@@ -1253,7 +1141,7 @@ public class Dump<E> implements DumpInput<E> {
        * <code>in</code>, for later use. An internal
        * buffer array is created and  stored in <code>buf</code>.
        *
-       * @param   in   the underlying input stream.
+       * @param   ch   the underlying file channel.
        */
       public ResetableBufferedInputStream( @Nullable FileChannel ch, long rafPos, boolean suppressClose ) {
          this(ch, defaultBufferSize, rafPos, suppressClose);
@@ -1531,11 +1419,123 @@ public class Dump<E> implements DumpInput<E> {
       }
    }
 
+   class DeletionAwareDumpReader extends DumpReader<E>implements DumpIterator<E> {
+
+      ResetableBufferedInputStream _positionAwareInputStream;
+      long                         _lastPos;
+      long                         _maxPos;
+      FileInputStream              _in;
+
+
+      public DeletionAwareDumpReader( File dumpFile, ObjectStreamProvider streamProvider ) throws IOException {
+         this(dumpFile, streamProvider, _outputStream._n);
+      }
+
+      private DeletionAwareDumpReader( File dumpFile, ObjectStreamProvider streamProvider, long maxPos ) throws IOException {
+         super(new ResetableBufferedInputStream(new FileInputStream(_dumpFile), 0, false), 0, streamProvider);
+         if ( !_mode.contains(DumpAccessFlag.read) ) {
+            throw new AccessControlException("Read operation not allowed with current modes.");
+         }
+         _positionAwareInputStream = (ResetableBufferedInputStream)_primitiveInputStream;
+         _positionAwareInputStream._lastElementBytes = new byte[1024];
+         _maxPos = maxPos;
+      }
+
+      @Override
+      public long getPosition() {
+         return _lastPos;
+      }
+
+      @Override
+      public boolean hasNext() {
+         synchronized ( Dump.this ) {
+            long pos = -1;
+            boolean hasNext = false;
+            do {
+               _positionAwareInputStream._lastElementBytesLength = 0;
+               pos = _positionAwareInputStream._rafPos;
+               hasNext = _maxPos > pos && super.hasNext();
+            }
+            while ( hasNext && _deletedPositions.contains(pos) && super.next() != null ); // condition 'super.next() != null' is just to move the Iterator on
+            _lastPos = pos;
+
+            _nextItemPos.set(_positionAwareInputStream._rafPos);
+            if ( hasNext && _cache != null ) {
+               // we don't cache E instances to prevent the user from changing the cached instances
+               byte[] nextItemPos = longToBytes(_nextItemPos.get());
+               byte[] lastElementBytes = new byte[_positionAwareInputStream._lastElementBytesLength + nextItemPos.length];
+               System.arraycopy(_positionAwareInputStream._lastElementBytes, 0, lastElementBytes, 0, _positionAwareInputStream._lastElementBytesLength);
+               appendNextItemPos(lastElementBytes, nextItemPos);
+               _cache.put(Long.valueOf(pos), lastElementBytes); // ugly boxing of pos necessary here, since _cache is a regular Map - the cost of beauty is ugliness
+            }
+            if ( !hasNext ) {
+               super.closeStreams(true);
+            }
+
+            _positionAwareInputStream._lastElementBytesLength = 0;
+
+            return hasNext;
+         }
+      }
+
+      @Override
+      public @Nonnull DumpIterator<E> iterator() {
+         return this;
+      }
+
+      @Override
+      public E next() {
+         _lastItemPos.set(_lastPos);
+         return super.next();
+      }
+   }
+
+   class PositionAwareOutputStream extends OutputStream {
+
+      long _n;
+
+      private final OutputStream _out;
+
+
+      public PositionAwareOutputStream( OutputStream out, long n ) {
+         _out = out;
+         _n = n;
+      }
+
+      @Override
+      public void close() throws IOException {
+         _out.close();
+      }
+
+      @Override
+      public void flush() throws IOException {
+         _out.flush();
+      }
+
+      @Override
+      public void write( byte[] b ) throws IOException {
+         _out.write(b);
+         _n += b.length;
+      }
+
+      @Override
+      public void write( byte[] b, int off, int len ) throws IOException {
+         _out.write(b, off, len);
+         _n += len;
+      }
+
+      @Override
+      public void write( int b ) throws IOException {
+         _out.write(b);
+         _n++;
+      }
+   }
+
    private final class LongThreadLocal extends ThreadLocal<Long> {
 
       @Override
       protected Long initialValue() {
-         return Long.valueOf(-1);
+         return -1L;
       }
    }
 }
