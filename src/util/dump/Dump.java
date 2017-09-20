@@ -243,7 +243,7 @@ public class Dump<E> implements DumpInput<E> {
          _updateByteOutput = new ByteArrayOutputStream(1024);
          _updateOut = _streamProvider.createObjectOutput(_updateByteOutput);
       }
-      catch ( IOException argh ) {
+      catch ( Exception argh ) {
          try {
             close();
          }
