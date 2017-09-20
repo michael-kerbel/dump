@@ -121,24 +121,24 @@ public class Dump<E> implements DumpInput<E> {
    File                 _metaFile;
    Set<DumpIndex<E>>    _indexes = new HashSet<>();
 
-   DumpWriter<E>                _writer;
-   DumpReader<E>                _reader;
-   PositionAwareOutputStream    _outputStream;
-   RandomAccessFile             _raf;
-   ResetableBufferedInputStream _resetableBufferedInputStream;
-   DataOutputStream             _deletionsOutput;
-   TLongSet                     _deletedPositions = new TLongHashSet();
+   DumpWriter<E>                 _writer;
+   DumpReader<E>                 _reader;
+   PositionAwareOutputStream     _outputStream;
+   RandomAccessFile              _raf;
+   ResettableBufferedInputStream _resettableBufferedInputStream;
+   DataOutputStream              _deletionsOutput;
+   protected TLongSet            _deletedPositions = new TLongHashSet();
 
    /** The keys are positions in the dump file and the values are the bytes of the serialized item stored there.
     * Appended to these bytes is a space efficient encoding (see <code>longToBytes(long)</code>) of the next
     * item's position. */
-   Map<Long, byte[]>            _cache;
-   int                          _cacheSize;
-   ObjectInput                  _cacheObjectInput;
-   ResetableBufferedInputStream _cacheByteInput;
-   Map<Long, byte[]>            _singleItemCache = new HashMap<>();
-   AtomicInteger                _cacheLookups    = new AtomicInteger(0);
-   AtomicInteger                _cacheHits       = new AtomicInteger(0);
+   Map<Long, byte[]>             _cache;
+   int                           _cacheSize;
+   ObjectInput                   _cacheObjectInput;
+   ResettableBufferedInputStream _cacheByteInput;
+   Map<Long, byte[]>             _singleItemCache = new HashMap<>();
+   AtomicInteger                 _cacheLookups    = new AtomicInteger(0);
+   AtomicInteger                 _cacheHits       = new AtomicInteger(0);
 
    ByteArrayOutputStream _updateByteOutput;
    ObjectOutput          _updateOut;
@@ -260,7 +260,7 @@ public class Dump<E> implements DumpInput<E> {
             throw new IllegalArgumentException("cacheSize may not be greater 0 when not using SingleTypeObjectStreamProvider.");
          }
          _cache = new SoftLRUCache(cacheSize); // no synchronization needed, since get(.) is synchronized
-         _cacheByteInput = new ResetableBufferedInputStream((FileChannel)null, 0, false);
+         _cacheByteInput = new ResettableBufferedInputStream((FileChannel)null, 0, false);
          try {
             _cacheObjectInput = streamProvider.createObjectInput(_cacheByteInput);
          }
@@ -332,7 +332,7 @@ public class Dump<E> implements DumpInput<E> {
       if ( _raf != null ) {
          _raf.close();
       }
-      // _resetableBufferedInputStream doesn't have to be closed, since it only closes the _raf
+      // _resettableBufferedInputStream doesn't have to be closed, since it only closes the _raf
       if ( _reader != null ) {
          _reader.close();
       }
@@ -484,35 +484,35 @@ public class Dump<E> implements DumpInput<E> {
          try {
             flush();
 
-            if ( _resetableBufferedInputStream == null || _resetableBufferedInputStream._rafPos != pos ) {
+            if ( _resettableBufferedInputStream == null || _resettableBufferedInputStream._rafPos != pos ) {
                // only seek if we don't do sequential reads
                _raf.seek(pos);
 
-               if ( _resetableBufferedInputStream == null ) {
-                  _resetableBufferedInputStream = new ResetableBufferedInputStream(_raf.getChannel(), pos, true);
-                  _resetableBufferedInputStream._lastElementBytes = new byte[1024];
-                  _reader.reset(_resetableBufferedInputStream, 0, _streamProvider);
+               if ( _resettableBufferedInputStream == null ) {
+                  _resettableBufferedInputStream = new ResettableBufferedInputStream(_raf.getChannel(), pos, true);
+                  _resettableBufferedInputStream._lastElementBytes = new byte[1024];
+                  _reader.reset(_resettableBufferedInputStream, 0, _streamProvider);
                } else {
-                  _resetableBufferedInputStream.reset(_raf.getChannel(), pos);
+                  _resettableBufferedInputStream.reset(_raf.getChannel(), pos);
                }
             }
 
             if ( _reader.hasNext() ) {
                E value = _reader.next();
-               _nextItemPos.set(_resetableBufferedInputStream._rafPos);
+               _nextItemPos.set(_resettableBufferedInputStream._rafPos);
                if ( _cache != null ) {
                   // we don't cache E instances to prevent the user from changing the cached instances
                   byte[] nextItemPos = longToBytes(_nextItemPos.get());
-                  byte[] lastElementBytes = new byte[_resetableBufferedInputStream._lastElementBytesLength + nextItemPos.length];
-                  System.arraycopy(_resetableBufferedInputStream._lastElementBytes, 0, lastElementBytes, 0,
-                     _resetableBufferedInputStream._lastElementBytesLength);
+                  byte[] lastElementBytes = new byte[_resettableBufferedInputStream._lastElementBytesLength + nextItemPos.length];
+                  System.arraycopy(_resettableBufferedInputStream._lastElementBytes, 0, lastElementBytes, 0,
+                     _resettableBufferedInputStream._lastElementBytesLength);
                   appendNextItemPos(lastElementBytes, nextItemPos);
                   _cache.put(Long.valueOf(pos), lastElementBytes); // ugly boxing of pos necessary here, since _cache is a regular Map - the cost of beauty is ugliness
                }
-               if ( _resetableBufferedInputStream._lastElementBytes.length > 64 * 1024 ) {
-                  _resetableBufferedInputStream._lastElementBytes = new byte[1024];
+               if ( _resettableBufferedInputStream._lastElementBytes.length > 64 * 1024 ) {
+                  _resettableBufferedInputStream._lastElementBytes = new byte[1024];
                }
-               _resetableBufferedInputStream._lastElementBytesLength = 0;
+               _resettableBufferedInputStream._lastElementBytesLength = 0;
                _lastItemPos.set(pos);
                if ( positionIsDeleted ) {
                   return null;
@@ -1070,7 +1070,7 @@ public class Dump<E> implements DumpInput<E> {
       public abstract void element( E o, long pos );
    }
 
-   static class ResetableBufferedInputStream extends InputStream {
+   static class ResettableBufferedInputStream extends InputStream {
 
       private static int defaultBufferSize = 256 * 1024; // this is enough, see http://nadeausoftware.com/articles/2008/02/java_tip_how_read_files_quickly
 
@@ -1134,7 +1134,7 @@ public class Dump<E> implements DumpInput<E> {
        * @param   size   the buffer size.
        * @exception IllegalArgumentException if size <= 0.
        */
-      public ResetableBufferedInputStream( @Nullable FileChannel ch, int size, long rafPos, boolean suppressClose ) {
+      public ResettableBufferedInputStream( @Nullable FileChannel ch, int size, long rafPos, boolean suppressClose ) {
          init(ch, size, rafPos, suppressClose);
       }
 
@@ -1146,11 +1146,11 @@ public class Dump<E> implements DumpInput<E> {
        *
        * @param   ch   the underlying file channel.
        */
-      public ResetableBufferedInputStream( @Nullable FileChannel ch, long rafPos, boolean suppressClose ) {
+      public ResettableBufferedInputStream( @Nullable FileChannel ch, long rafPos, boolean suppressClose ) {
          this(ch, defaultBufferSize, rafPos, suppressClose);
       }
 
-      public ResetableBufferedInputStream( FileInputStream fileInputStream, long rafPos, boolean suppressClose ) {
+      public ResettableBufferedInputStream( FileInputStream fileInputStream, long rafPos, boolean suppressClose ) {
          _fileInputStream = fileInputStream;
          init(_fileInputStream.getChannel(), defaultBufferSize, rafPos, suppressClose);
       }
@@ -1424,10 +1424,10 @@ public class Dump<E> implements DumpInput<E> {
 
    class DeletionAwareDumpReader extends DumpReader<E>implements DumpIterator<E> {
 
-      ResetableBufferedInputStream _positionAwareInputStream;
-      long                         _lastPos;
-      long                         _maxPos;
-      FileInputStream              _in;
+      ResettableBufferedInputStream _positionAwareInputStream;
+      long                          _lastPos;
+      long                          _maxPos;
+      FileInputStream               _in;
 
 
       public DeletionAwareDumpReader( File dumpFile, ObjectStreamProvider streamProvider ) throws IOException {
@@ -1435,11 +1435,11 @@ public class Dump<E> implements DumpInput<E> {
       }
 
       private DeletionAwareDumpReader( File dumpFile, ObjectStreamProvider streamProvider, long maxPos ) throws IOException {
-         super(new ResetableBufferedInputStream(new FileInputStream(_dumpFile), 0, false), 0, streamProvider);
+         super(new ResettableBufferedInputStream(new FileInputStream(_dumpFile), 0, false), 0, streamProvider);
          if ( !_mode.contains(DumpAccessFlag.read) ) {
             throw new AccessControlException("Read operation not allowed with current modes.");
          }
-         _positionAwareInputStream = (ResetableBufferedInputStream)_primitiveInputStream;
+         _positionAwareInputStream = (ResettableBufferedInputStream)_primitiveInputStream;
          _positionAwareInputStream._lastElementBytes = new byte[1024];
          _maxPos = maxPos;
       }
