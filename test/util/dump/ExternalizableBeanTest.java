@@ -33,6 +33,9 @@ import java.util.UUID;
 import org.junit.Test;
 
 import util.dump.ExternalizableBean.externalize;
+import util.dump.ExternalizableBean.externalizationPadding;
+import util.dump.stream.SingleTypeObjectInputStream;
+import util.dump.stream.SingleTypeObjectOutputStream;
 import util.reflection.Reflection;
 
 
@@ -424,6 +427,19 @@ public class ExternalizableBeanTest {
    @Test
    public void testUpwardCompatibility() throws Exception {
       testCompatibility(TestBean.class, TestBean2.class);
+   }
+
+   @Test
+   public void testPadding() throws IOException {
+      for(int i = 0; i<2001; i++){
+         TestBeanPadding bean = new TestBeanPadding();
+         bean._data = new byte[i];
+         byte[] bytes = SingleTypeObjectOutputStream.writeSingleInstance(bean);
+         assertThat(bytes.length%1000).as("written wrong padding for i="+i).isEqualTo(0);
+
+         TestBeanPadding beanFromBytes = SingleTypeObjectInputStream.readSingleInstance(TestBeanPadding.class, bytes);
+         assertThat(beanFromBytes).as("Failed to read padded instance correctly").isEqualTo(bean);
+      }
    }
 
    protected Externalizable[] readAndAssert( byte[] bytes, Class testClass, Externalizable[] t ) throws Exception {
@@ -1359,6 +1375,32 @@ public class ExternalizableBeanTest {
       public boolean _booleanPrimitive;
       @externalize(3)
       public byte    _bytePrimitive;
+   }
+
+   @externalizationPadding(sizeModulo = 1000)
+   public static class TestBeanPadding implements ExternalizableBean{
+
+      @externalize(1)
+      public byte[] _data;
+
+      @Override
+      public boolean equals( Object o ) {
+         if ( this == o ) {
+            return true;
+         }
+         if ( o == null || getClass() != o.getClass() ) {
+            return false;
+         }
+
+         TestBeanPadding that = (TestBeanPadding)o;
+
+         return Arrays.equals(_data, that._data);
+      }
+
+      @Override
+      public int hashCode() {
+         return Arrays.hashCode(_data);
+      }
    }
 
    public enum TestEnum {
