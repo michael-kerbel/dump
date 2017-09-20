@@ -1,5 +1,7 @@
 package util.dump;
 
+import javax.annotation.Nonnull;
+
 import java.io.DataInput;
 import java.io.Externalizable;
 import java.io.IOException;
@@ -26,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.LoggerFactory;
 
+import util.dump.ExternalizableBean.externalizationPadding;
 import util.dump.ExternalizableBean.externalize;
 import util.dump.stream.ExternalizableObjectOutputStream;
 import util.reflection.FieldAccessor;
@@ -34,20 +37,18 @@ import util.reflection.MethodFieldAccessor;
 import util.reflection.UnsafeFieldFieldAccessor;
 
 
+@SuppressWarnings({ "unchecked", "ForLoopReplaceableByForEach", "WeakerAccess" })
 class ExternalizationHelper {
 
-   protected static final long     serialVersionUID           = -1816997029156670474L;
+   private static final long serialVersionUID = -1816997029156670474L;
 
-   static boolean                  USE_UNSAFE_FIELD_ACCESSORS = true;
-   static Map<Class, ClassConfig>  CLASS_CONFIGS              = new ConcurrentHashMap<Class, ClassConfig>();
-   static Map<Class, Boolean>      CLASS_CHANGED_INCOMPATIBLY = new HashMap<Class, Boolean>();
-   static ThreadLocal<StreamCache> STREAM_CACHE               = new ThreadLocal<StreamCache>() {
+   static boolean USE_UNSAFE_FIELD_ACCESSORS = true;
 
-                                                                 @Override
-                                                                 protected StreamCache initialValue() {
-                                                                    return new StreamCache();
-                                                                 }
-                                                              };
+   private static Map<Class, ClassConfig> CLASS_CONFIGS = new ConcurrentHashMap<>();
+
+   static Map<Class, Boolean>      CLASS_CHANGED_INCOMPATIBLY = new HashMap<>();
+   static ThreadLocal<StreamCache> STREAM_CACHE               = ThreadLocal.withInitial(StreamCache::new);
+
 
    static {
       try {
@@ -60,23 +61,20 @@ class ExternalizationHelper {
       }
    }
 
+   static Class<? extends Externalizable> forName( String className, ClassConfig config ) throws ClassNotFoundException {
+      return (Class<? extends Externalizable>)Class.forName(className, true, config._classLoader);
+   }
 
-   public static ClassConfig getConfig( Class<? extends ExternalizableBean> c ) {
+   static ClassConfig getConfig( Class<? extends ExternalizableBean> c ) {
       ClassConfig config = CLASS_CONFIGS.get(c);
       if ( config == null ) {
          config = new ClassConfig(c);
-         synchronized ( CLASS_CONFIGS ) {
-            CLASS_CONFIGS.put(c, config);
-         }
+         CLASS_CONFIGS.put(c, config);
       }
       return config;
    }
 
-   static final Class<? extends Externalizable> forName( String className, ClassConfig config ) throws ClassNotFoundException {
-      return (Class<? extends Externalizable>)Class.forName(className, true, config._classLoader);
-   }
-
-   static final byte[] readByteArray( DataInput in ) throws IOException {
+   static byte[] readByteArray( DataInput in ) throws IOException {
       byte[] d = null;
       boolean isNotNull = in.readBoolean();
       if ( isNotNull ) {
@@ -88,7 +86,7 @@ class ExternalizationHelper {
       return d;
    }
 
-   static final Collection readCollectionContainer( ObjectInput in, Class defaultType, boolean isDefaultType, int size, ClassConfig config ) throws Exception {
+   static Collection readCollectionContainer( ObjectInput in, Class defaultType, boolean isDefaultType, int size, ClassConfig config ) throws Exception {
       Collection d;
       if ( isDefaultType ) {
          if ( defaultType.equals(ArrayList.class) ) {
@@ -106,8 +104,8 @@ class ExternalizationHelper {
       return d;
    }
 
-   static final void readCollectionOfExternalizables( ObjectInput in, FieldAccessor f, Class defaultType, Class defaultGenericType,
-         ExternalizableBean thisInstance, ClassConfig config ) throws Exception {
+   static void readCollectionOfExternalizables( ObjectInput in, FieldAccessor f, Class defaultType, Class defaultGenericType, ExternalizableBean thisInstance,
+         ClassConfig config ) throws Exception {
       Collection d = null;
       boolean isNotNull = in.readBoolean();
       if ( isNotNull ) {
@@ -125,7 +123,7 @@ class ExternalizationHelper {
       }
    }
 
-   static final void readCollectionOfStrings( ObjectInput in, FieldAccessor f, Class defaultType, ExternalizableBean thisInstance, ClassConfig config )
+   static void readCollectionOfStrings( ObjectInput in, FieldAccessor f, Class defaultType, ExternalizableBean thisInstance, ClassConfig config )
          throws Exception {
       Collection d = null;
       boolean isNotNull = in.readBoolean();
@@ -148,7 +146,7 @@ class ExternalizationHelper {
       }
    }
 
-   static final Date readDate( ObjectInput in ) throws IOException {
+   static Date readDate( ObjectInput in ) throws IOException {
       Date d = null;
       boolean isNotNull = in.readBoolean();
       if ( isNotNull ) {
@@ -157,7 +155,7 @@ class ExternalizationHelper {
       return d;
    }
 
-   static final Date[] readDateArray( ObjectInput in ) throws IOException {
+   static Date[] readDateArray( ObjectInput in ) throws IOException {
       Date[] d = null;
       boolean isNotNull = in.readBoolean();
       if ( isNotNull ) {
@@ -169,7 +167,7 @@ class ExternalizationHelper {
       return d;
    }
 
-   static final double[] readDoubleArray( DataInput in ) throws IOException {
+   static double[] readDoubleArray( DataInput in ) throws IOException {
       double[] d = null;
       boolean isNotNull = in.readBoolean();
       if ( isNotNull ) {
@@ -181,8 +179,8 @@ class ExternalizationHelper {
       return d;
    }
 
-   static final Externalizable readExternalizable( ObjectInput in, Class<? extends Externalizable> defaultType, Class[] lastNonDefaultClass,
-         ClassConfig config ) throws Exception {
+   static Externalizable readExternalizable( ObjectInput in, Class<? extends Externalizable> defaultType, Class[] lastNonDefaultClass, ClassConfig config )
+         throws Exception {
       Externalizable instance = null;
       boolean isNotNull = in.readBoolean();
       if ( isNotNull ) {
@@ -205,7 +203,7 @@ class ExternalizationHelper {
       return instance;
    }
 
-   static final Externalizable[] readExternalizableArray( ObjectInput in, Class componentType, Class defaultType, ClassConfig config ) throws Exception {
+   static Externalizable[] readExternalizableArray( ObjectInput in, Class componentType, ClassConfig config ) throws Exception {
       Externalizable[] d = null;
       boolean isNotNull = in.readBoolean();
       if ( isNotNull ) {
@@ -220,7 +218,7 @@ class ExternalizationHelper {
       return d;
    }
 
-   static final float[] readFloatArray( DataInput in ) throws IOException {
+   static float[] readFloatArray( DataInput in ) throws IOException {
       float[] d = null;
       boolean isNotNull = in.readBoolean();
       if ( isNotNull ) {
@@ -232,7 +230,7 @@ class ExternalizationHelper {
       return d;
    }
 
-   static final int[] readIntArray( DataInput in ) throws IOException {
+   static int[] readIntArray( DataInput in ) throws IOException {
       int[] d = null;
       boolean isNotNull = in.readBoolean();
       if ( isNotNull ) {
@@ -244,7 +242,7 @@ class ExternalizationHelper {
       return d;
    }
 
-   static final long[] readLongArray( DataInput in ) throws IOException {
+   static long[] readLongArray( DataInput in ) throws IOException {
       long[] d = null;
       boolean isNotNull = in.readBoolean();
       if ( isNotNull ) {
@@ -256,7 +254,7 @@ class ExternalizationHelper {
       return d;
    }
 
-   static final String readString( ObjectInput in ) throws IOException {
+   static String readString( ObjectInput in ) throws IOException {
       String s = null;
       boolean isNotNull = in.readBoolean();
       if ( isNotNull ) {
@@ -265,7 +263,7 @@ class ExternalizationHelper {
       return s;
    }
 
-   static final String[] readStringArray( ObjectInput in ) throws IOException {
+   static String[] readStringArray( ObjectInput in ) throws IOException {
       String[] d = null;
       boolean isNotNull = in.readBoolean();
       if ( isNotNull ) {
@@ -277,7 +275,7 @@ class ExternalizationHelper {
       return d;
    }
 
-   static final UUID readUUID( ObjectInput in ) throws IOException {
+   static UUID readUUID( ObjectInput in ) throws IOException {
       UUID uuid = null;
       boolean isNotNull = in.readBoolean();
       if ( isNotNull ) {
@@ -288,7 +286,7 @@ class ExternalizationHelper {
       return uuid;
    }
 
-   static final void writeByteArray( byte[] d, ObjectOutput out ) throws IOException {
+   static void writeByteArray( byte[] d, ObjectOutput out ) throws IOException {
       out.writeBoolean(d != null);
       if ( d != null ) {
          out.writeInt(d.length);
@@ -298,7 +296,7 @@ class ExternalizationHelper {
       }
    }
 
-   static final void writeCollectionContainer( ObjectOutput out, Class defaultType, Collection d ) throws IOException {
+   static void writeCollectionContainer( ObjectOutput out, Class defaultType, Collection d ) throws IOException {
       Class listClass = d.getClass();
       boolean isDefaultType = listClass.equals(defaultType);
       out.writeBoolean(isDefaultType);
@@ -308,14 +306,14 @@ class ExternalizationHelper {
       }
    }
 
-   static final void writeDate( ObjectOutput out, Date s ) throws IOException {
+   static void writeDate( ObjectOutput out, Date s ) throws IOException {
       out.writeBoolean(s != null);
       if ( s != null ) {
          out.writeLong(s.getTime());
       }
    }
 
-   static final void writeDateArray( Date[] d, ObjectOutput out ) throws IOException {
+   static void writeDateArray( Date[] d, ObjectOutput out ) throws IOException {
       out.writeBoolean(d != null);
       if ( d != null ) {
          out.writeInt(d.length);
@@ -325,7 +323,7 @@ class ExternalizationHelper {
       }
    }
 
-   static final void writeDoubleArray( double[] d, ObjectOutput out ) throws IOException {
+   static void writeDoubleArray( double[] d, ObjectOutput out ) throws IOException {
       out.writeBoolean(d != null);
       if ( d != null ) {
          out.writeInt(d.length);
@@ -335,7 +333,7 @@ class ExternalizationHelper {
       }
    }
 
-   static final void writeExternalizable( ObjectOutput out, Externalizable instance, Class defaultType, Class[] lastNonDefaultClass ) throws Exception {
+   static void writeExternalizable( ObjectOutput out, Externalizable instance, Class defaultType, Class[] lastNonDefaultClass ) throws Exception {
       out.writeBoolean(instance != null);
       if ( instance != null ) {
          Class c = instance.getClass();
@@ -353,7 +351,7 @@ class ExternalizationHelper {
       }
    }
 
-   static final void writeExternalizableArray( ObjectOutput out, Externalizable[] d, Class defaultType ) throws Exception, IOException {
+   static void writeExternalizableArray( ObjectOutput out, Externalizable[] d, Class defaultType ) throws Exception {
       out.writeBoolean(d != null);
       if ( d != null ) {
          out.writeInt(d.length);
@@ -367,7 +365,7 @@ class ExternalizationHelper {
 
    }
 
-   static final void writeFloatArray( float[] d, ObjectOutput out ) throws IOException {
+   static void writeFloatArray( float[] d, ObjectOutput out ) throws IOException {
       out.writeBoolean(d != null);
       if ( d != null ) {
          out.writeInt(d.length);
@@ -377,7 +375,7 @@ class ExternalizationHelper {
       }
    }
 
-   static final void writeIntArray( int[] d, ObjectOutput out ) throws IOException {
+   static void writeIntArray( int[] d, ObjectOutput out ) throws IOException {
       out.writeBoolean(d != null);
       if ( d != null ) {
          out.writeInt(d.length);
@@ -387,8 +385,8 @@ class ExternalizationHelper {
       }
    }
 
-   static final void writeListOfExternalizables( ObjectOutput out, FieldAccessor f, Class defaultType, Class defaultGenericType,
-         ExternalizableBean thisInstance ) throws Exception, IOException {
+   static void writeListOfExternalizables( ObjectOutput out, FieldAccessor f, Class defaultType, Class defaultGenericType, ExternalizableBean thisInstance )
+         throws Exception {
       List d = (List)f.get(thisInstance);
       out.writeBoolean(d != null);
       if ( d != null ) {
@@ -402,7 +400,7 @@ class ExternalizationHelper {
       }
    }
 
-   static final void writeListOfStrings( ObjectOutput out, FieldAccessor f, Class defaultType, ExternalizableBean thisInstance ) throws Exception, IOException {
+   static void writeListOfStrings( ObjectOutput out, FieldAccessor f, Class defaultType, ExternalizableBean thisInstance ) throws Exception {
       List d = (List)f.get(thisInstance);
       out.writeBoolean(d != null);
       if ( d != null ) {
@@ -417,7 +415,7 @@ class ExternalizationHelper {
       }
    }
 
-   static final void writeLongArray( long[] d, ObjectOutput out ) throws IOException {
+   static void writeLongArray( long[] d, ObjectOutput out ) throws IOException {
       out.writeBoolean(d != null);
       if ( d != null ) {
          out.writeInt(d.length);
@@ -427,8 +425,8 @@ class ExternalizationHelper {
       }
    }
 
-   static final void writeSetOfExternalizables( ObjectOutput out, FieldAccessor f, Class defaultType, Class defaultGenericType,
-         ExternalizableBean thisInstance ) throws Exception {
+   static void writeSetOfExternalizables( ObjectOutput out, FieldAccessor f, Class defaultType, Class defaultGenericType, ExternalizableBean thisInstance )
+         throws Exception {
       Set<Externalizable> d = (Set)f.get(thisInstance);
       out.writeBoolean(d != null);
       if ( d != null ) {
@@ -441,7 +439,7 @@ class ExternalizationHelper {
       }
    }
 
-   static final void writeSetOfStrings( ObjectOutput out, FieldAccessor f, Class defaultType, ExternalizableBean thisInstance ) throws Exception {
+   static void writeSetOfStrings( ObjectOutput out, FieldAccessor f, Class defaultType, ExternalizableBean thisInstance ) throws Exception {
       Set<String> d = (Set)f.get(thisInstance);
       out.writeBoolean(d != null);
       if ( d != null ) {
@@ -456,14 +454,14 @@ class ExternalizationHelper {
       }
    }
 
-   static final void writeString( ObjectOutput out, String s ) throws IOException {
+   static void writeString( ObjectOutput out, String s ) throws IOException {
       out.writeBoolean(s != null);
       if ( s != null ) {
          DumpUtils.writeUTF(s, out);
       }
    }
 
-   static final void writeStringArray( String[] d, ObjectOutput out ) throws IOException {
+   static void writeStringArray( String[] d, ObjectOutput out ) throws IOException {
       out.writeBoolean(d != null);
       if ( d != null ) {
          out.writeInt(d.length);
@@ -473,7 +471,7 @@ class ExternalizationHelper {
       }
    }
 
-   static final void writeUUID( ObjectOutput out, UUID uuid ) throws IOException {
+   static void writeUUID( ObjectOutput out, UUID uuid ) throws IOException {
       out.writeBoolean(uuid != null);
       if ( uuid != null ) {
          out.writeLong(uuid.getMostSignificantBits());
@@ -528,11 +526,14 @@ class ExternalizationHelper {
       SetOfStrings(Runtime.class, 42, true), // Runtime is just a placeholder - this FieldType is handled specially 
       Enum(Enum.class, 43, true), // 
       EnumSet(EnumSet.class, 44, true), //
+      Padding(Thread.class, 45), //
       // TODO add Map (beware of Collections.*Map or Treemaps using custom Comparators!)
       ;
 
-      private static final Map<Class, FieldType> _classLookup = new HashMap<Class, FieldType>(FieldType.values().length);
-      private static final FieldType[]           _idLookup    = new FieldType[127];
+      private static Map<Class, FieldType> _classLookup = new HashMap<>(FieldType.values().length);
+      private static FieldType[] _idLookup = new FieldType[127];
+
+
       static {
          for ( FieldType ft : FieldType.values() ) {
             if ( _classLookup.get(ft._class) != null ) {
@@ -546,27 +547,26 @@ class ExternalizationHelper {
          }
       }
 
-
-      public static final FieldType forClass( Class c ) {
+      public static FieldType forClass( Class c ) {
          return _classLookup.get(c);
       }
 
-      public static final FieldType forId( byte id ) {
+      public static FieldType forId( byte id ) {
          return _idLookup[id];
       }
 
 
       final Class _class;
-      final byte  _id;
-      boolean     _lengthDynamic = false;
+      final byte _id;
+      boolean _lengthDynamic = false;
 
 
-      private FieldType( Class c, int id ) {
+      FieldType( Class c, int id ) {
          _class = c;
          _id = (byte)id;
       }
 
-      private FieldType( Class c, int id, boolean lengthDynamic ) {
+      FieldType( Class c, int id, boolean lengthDynamic ) {
          this(c, id);
          _lengthDynamic = lengthDynamic;
       }
@@ -576,7 +576,7 @@ class ExternalizationHelper {
       }
    }
 
-   static final class BytesCache extends OutputStream {
+   static class BytesCache extends OutputStream {
 
       // this is basically an unsynchronized ByteArrayOutputStream with a writeTo(ObjectOutput) method
 
@@ -608,7 +608,7 @@ class ExternalizationHelper {
       }
 
       @Override
-      public void write( byte[] bytes, int start, int length ) {
+      public void write( @Nonnull byte[] bytes, int start, int length ) {
          if ( (start < 0) || (start > bytes.length) || (length < 0) || (start + length > bytes.length) || (start + length < 0) ) {
             throw new IndexOutOfBoundsException();
          }
@@ -638,7 +638,7 @@ class ExternalizationHelper {
       }
    }
 
-   static final class ClassConfig {
+   static class ClassConfig {
 
       Class           _class;
       ClassLoader     _classLoader;
@@ -648,6 +648,7 @@ class ExternalizationHelper {
       Class[]         _defaultTypes;
       Class[]         _defaultGenericTypes0;
       Class[]         _defaultGenericTypes1;
+      int             _sizeModulo = -1;
 
 
       public ClassConfig( Class clientClass ) {
@@ -660,11 +661,13 @@ class ExternalizationHelper {
 
          _class = clientClass;
          _classLoader = clientClass.getClassLoader();
-         List<FieldInfo> fieldInfos = new ArrayList<FieldInfo>();
+         List<FieldInfo> fieldInfos = new ArrayList<>();
 
          initFromFields(fieldInfos);
 
          initFromMethods(fieldInfos);
+
+         initSizeModulo(fieldInfos);
 
          Collections.sort(fieldInfos);
 
@@ -881,9 +884,6 @@ class ExternalizationHelper {
                }
             }
 
-            assert getter != null;
-            assert setter != null;
-
             externalize getterAnnotation = getter.getAnnotation(externalize.class);
             externalize setterAnnotation = setter.getAnnotation(externalize.class);
             if ( getterAnnotation == null && setterAnnotation == null ) {
@@ -900,9 +900,27 @@ class ExternalizationHelper {
             addFieldInfo(fieldInfos, annotation, fieldAccessor, type, getter.getName());
          }
       }
+
+      private void initSizeModulo( List<FieldInfo> fieldInfos ) {
+         Class c = _class;
+         while ( c != Object.class ) {
+            externalizationPadding annotation = (externalizationPadding)c.getAnnotation(externalizationPadding.class);
+            if ( annotation != null ) {
+               _sizeModulo = annotation.sizeModulo();
+
+               FieldInfo fi = new FieldInfo();
+               fi._fieldIndex = (byte)255;
+               fi._fieldType = FieldType.Padding;
+               fieldInfos.add(fi);
+               break;
+            }
+
+            c = c.getSuperclass();
+         }
+      }
    }
 
-   static final class FieldInfo implements Comparable<FieldInfo> {
+   static class FieldInfo implements Comparable<FieldInfo> {
 
       FieldAccessor _fieldAccessor;
       FieldType     _fieldType;
@@ -913,8 +931,10 @@ class ExternalizationHelper {
 
 
       @Override
-      public int compareTo( FieldInfo o ) {
-         return (_fieldIndex < o._fieldIndex ? -1 : (_fieldIndex == o._fieldIndex ? 0 : 1));
+      public int compareTo( @Nonnull FieldInfo o ) {
+         int fieldIndex = _fieldIndex & 0xFF;
+         int otherFieldIndex = o._fieldIndex & 0xFF;
+         return Integer.compare(fieldIndex, otherFieldIndex);
       }
 
       private void setDefaultType( Class type, FieldAccessor fieldAccessor, FieldType ft, externalize annotation ) {
@@ -976,7 +996,7 @@ class ExternalizationHelper {
       }
    }
 
-   static final class StreamCache {
+   static class StreamCache {
 
       BytesCache   _bytesCache = new BytesCache();
       ObjectOutput _objectOutput;

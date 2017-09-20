@@ -9,14 +9,14 @@ import java.security.AccessControlException;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import junit.framework.Assert;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import junit.framework.Assert;
 import util.dump.Dump.DumpAccessFlag;
 import util.dump.Dump.ElementAndPosition;
+import util.dump.ExternalizableBeanTest.TestBeanPadding;
 
 
 public class DumpTest {
@@ -41,47 +41,35 @@ public class DumpTest {
    @Test(expected = AccessControlException.class)
    public void testAddIndexWithoutAccessRight() throws Exception {
       File dumpFile = new File("DumpTest.dmp");
-      Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile, DumpAccessFlag.add, DumpAccessFlag.delete);
-      try {
+      try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile, DumpAccessFlag.add, DumpAccessFlag.delete)) {
          dump.add(new Bean(1));
          dump.delete(0);
          dump.add(new Bean(1));
-         new UniqueIndex<Bean>(dump, "_id");
-      }
-      finally {
-         dump.close();
+         new UniqueIndex<>(dump, "_id");
       }
    }
 
    @Test(expected = AccessControlException.class)
    public void testAddWithoutAccessRight() throws Exception {
       File dumpFile = new File("DumpTest.dmp");
-      Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile, DumpAccessFlag.read);
-      try {
+      try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile, DumpAccessFlag.read)) {
          dump.add(new Bean(1));
-      }
-      finally {
-         dump.close();
       }
    }
 
    @Test(expected = AccessControlException.class)
    public void testDeleteWithoutAccessRight() throws Exception {
       File dumpFile = new File("DumpTest.dmp");
-      Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile, DumpAccessFlag.add);
-      try {
+      try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile, DumpAccessFlag.add)) {
          dump.add(new Bean(1));
          dump.delete(0);
-      }
-      finally {
-         dump.close();
       }
    }
 
    @Test
    public void testGetWithoutAccessRight() throws Exception {
       File dumpFile = new File("DumpTest.dmp");
-      Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile, DumpAccessFlag.add);
+      Dump<Bean> dump = new Dump<>(Bean.class, dumpFile, DumpAccessFlag.add);
 
       dump.add(new Bean(1));
       dump.add(new Bean(2));
@@ -102,23 +90,34 @@ public class DumpTest {
    }
 
    @Test
+   public void testInPlaceUpdateWithPadding() throws Exception {
+      File dumpFile = new File("DumpTest.dmp");
+      try (Dump<TestBeanPadding> dump = new Dump<>(TestBeanPadding.class, dumpFile)) {
+         TestBeanPadding bean = new TestBeanPadding();
+         bean._data = new byte[100];
+         dump.add(bean);
+         assertThat(dump.getDumpSize()).as("unexpected dump size before update").isEqualTo(1000);
+         bean._data = new byte[200];
+         dump.update(0, bean);
+         assertThat(dump.getDumpSize()).as("unexpected dump size after update").isEqualTo(1000);
+      }
+   }
+
+   @Test
    public void testIterateEmptyDump() throws Exception {
       File dumpFile = new File("DumpTest.dmp");
-      Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile);
-
-      for ( Bean bean : dump ) {
-         Assert.assertTrue("Element returned during iteration of empty dump", false);
-         Assert.assertNotNull("Element returned during iteration of empty dump", bean);
+      try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile)) {
+         for ( Bean bean : dump ) {
+            Assert.assertTrue("Element returned during iteration of empty dump", false);
+            Assert.assertNotNull("Element returned during iteration of empty dump", bean);
+         }
       }
-
-      dump.close();
    }
 
    @Test
    public void testPruning() throws Exception {
       File dumpFile = new File("DumpTest.dmp");
-      Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile);
-      try {
+      try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile)) {
          for ( int i = 0; i < Dump.PRUNE_THRESHOLD * 3; i++ ) {
             dump.add(new Bean(i));
          }
@@ -128,28 +127,24 @@ public class DumpTest {
                dump.deleteLast();
             }
          }
+      }
 
-         dump.close();
+      long dumpFileLengthBeforePruning = dumpFile.length();
 
-         long dumpFileLengthBeforePruning = dumpFile.length();
-
-         dump = new Dump<Bean>(Bean.class, dumpFile);
+      try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile)) {
          Assert.assertEquals(0, dump._deletedPositions.size());
          dump.close();
 
          Assert.assertEquals(0, dump._deletionsFile.length());
          assertThat(dumpFile.length()).isLessThanOrEqualTo((dumpFileLengthBeforePruning / 2) + 1);
       }
-      finally {
-         dump.close();
-      }
    }
 
    @Test
    public void testReOpening() throws IOException, NoSuchFieldException {
       File dumpFile = new File("DumpTest.dmp");
-      Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile);
-      UniqueIndex<Bean> index = new UniqueIndex<Bean>(dump, "_id");
+      Dump<Bean> dump = new Dump<>(Bean.class, dumpFile);
+      UniqueIndex<Bean> index = new UniqueIndex<>(dump, "_id");
       for ( int j = 0; j < 100000; j++ ) {
          dump.add(new Bean(j));
       }
@@ -165,8 +160,8 @@ public class DumpTest {
 
       dump.close();
 
-      dump = new Dump<Bean>(Bean.class, dumpFile);
-      index = new UniqueIndex<Bean>(dump, "_id");
+      dump = new Dump<>(Bean.class, dumpFile);
+      index = new UniqueIndex<>(dump, "_id");
       for ( int j = 100000; j < 200000; j++ ) {
          dump.add(new Bean(j));
       }
@@ -194,7 +189,7 @@ public class DumpTest {
 
       dump.close();
 
-      dump = new Dump<Bean>(Bean.class, dumpFile);
+      dump = new Dump<>(Bean.class, dumpFile);
 
       /* test deletions after re-opening*/
       i = 0;
@@ -210,47 +205,43 @@ public class DumpTest {
    @Test
    public void testUpdateAll() throws IOException {
       File dumpFile = new File("DumpTest.dmp");
-      Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile);
-      for ( int j = 0; j < 100000; j++ ) {
-         dump.add(new Bean(j));
-      }
-      final SortedSet<ElementAndPosition<Bean>> updates = new TreeSet<ElementAndPosition<Bean>>();
-      DumpIterator<Bean> iterator = dump.iterator();
-      while ( iterator.hasNext() ) {
-         Bean b = iterator.next();
-         if ( b._id % 100 == 0 ) {
-            b._id = -b._id;
-            updates.add(new Dump.ElementAndPosition<Bean>(b, iterator.getPosition()));
+      try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile)) {
+         for ( int j = 0; j < 100000; j++ ) {
+            dump.add(new Bean(j));
          }
-      }
-
-      dump.updateAll(updates);
-
-      int numUpdates = 0;
-      for ( Bean b : dump ) {
-         if ( b._id % 100 == 0 ) {
-            numUpdates++;
-            Assert.assertTrue("updated wrong bean", b._id <= 0);
-         } else {
-            Assert.assertTrue("updated wrong bean", b._id >= 0);
+         final SortedSet<ElementAndPosition<Bean>> updates = new TreeSet<>();
+         DumpIterator<Bean> iterator = dump.iterator();
+         while ( iterator.hasNext() ) {
+            Bean b = iterator.next();
+            if ( b._id % 100 == 0 ) {
+               b._id = -b._id;
+               updates.add(new Dump.ElementAndPosition<>(b, iterator.getPosition()));
+            }
          }
+
+         dump.updateAll(updates);
+
+         int numUpdates = 0;
+         for ( Bean b : dump ) {
+            if ( b._id % 100 == 0 ) {
+               numUpdates++;
+               Assert.assertTrue("updated wrong bean", b._id <= 0);
+            } else {
+               Assert.assertTrue("updated wrong bean", b._id >= 0);
+            }
+         }
+         Assert.assertEquals("Wrong number of updates", numUpdates, updates.size());
       }
-      Assert.assertEquals("Wrong number of updates", numUpdates, updates.size());
-      dump.close();
    }
 
    @Test(expected = AccessControlException.class)
    public void testUpdateInPlaceWithoutAccessRight() throws Exception {
       File dumpFile = new File("DumpTest.dmp");
-      Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile, DumpAccessFlag.add, DumpAccessFlag.delete);
-      try {
+      try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile, DumpAccessFlag.add, DumpAccessFlag.delete)) {
          dump.add(new Bean(1));
          dump.delete(0);
          dump.add(new Bean(1));
          dump.update(0, new Bean(2));
-      }
-      finally {
-         dump.close();
       }
    }
 

@@ -33,6 +33,7 @@ import static util.dump.ExternalizationHelper.writeString;
 import static util.dump.ExternalizationHelper.writeStringArray;
 import static util.dump.ExternalizationHelper.writeUUID;
 
+import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.Externalizable;
 import java.io.IOException;
@@ -127,56 +128,24 @@ import util.reflection.FieldAccessor;
  * methods, unless you need some transformation before or after serialization. 
  * </li>
  * </ul>
- * @see {@link util.dump.ExternalizableBeanTest}
  * @see externalize
  */
+@SuppressWarnings({ "unchecked", "unused" })
 public interface ExternalizableBean extends Externalizable {
 
-   public static final long serialVersionUID = -1816997029156670474L;
+   long serialVersionUID = -1816997029156670474L;
 
-
-   /**
-    * Annotating fields gives a better performance compared to methods. You can annotate even private fields.
-    * If you annotate methods, it's enough to annotate either the getter or the setter. Of course you can also annotate both, but the indexes must match.
-    */
-   @Retention(RetentionPolicy.RUNTIME)
-   @Target({ ElementType.FIELD, ElementType.METHOD })
-   public @interface externalize {
-
-      /** The default type of the first generic argument, like in <code>List&lt;GenericType0&gt;</code>.
-       * You should set this, if the most frequent type of this container's generic argument (the List values in the example) does not match the declared generic type.
-       * In that case setting this value improves both space requirement and performance.  */
-      public Class defaultGenericType0() default System.class; // System.class is just a placeholder for nothing, in order to make this argument optional
-
-      /** The default type of the second generic argument, like in <code>Map&lt;K, GenericType1&gt;</code>. 
-       * You should set this, if the most frequent type of this container's second generic argument (the Map values in the example) does not match the declared generic type.
-       * In that case setting this value improves both space requirement and performance.  */
-      public Class defaultGenericType1() default System.class; // System.class is just a placeholder for nothing, in order to make this argument optional
-
-      /** The default type of this field. 
-       * You should set this, if the most frequent type of this field's instances does not match the declared field type.
-       * In that case setting this value improves both space requirement and performance.  */
-      public Class defaultType() default System.class; // System.class is just a placeholder for nothing, in order to make this argument optional
-
-      /**
-       * Aka index. Must be unique. Convention is to start from 1. To guarantee compatibility between revisions of a bean, 
-       * you may never change the field type or any of the default*Types while reusing the same index specified with this parameter.
-       * Doing so will corrupt old data dumps.       
-       */
-      public byte value();
-   }
 
    /** Clones this instance by externalizing it to bytes and reading these bytes again.
     *  This leads to a deep copy, but only for all fields annotated by @externalize(.). */
-   public default <T extends ExternalizableBean> T cloneDeeply(){
+   default <T extends ExternalizableBean> T cloneDeeply() {
       byte[] bytes = SingleTypeObjectOutputStream.writeSingleInstance(this);
       ExternalizableBean clone = SingleTypeObjectInputStream.readSingleInstance(this.getClass(), bytes);
       return (T)clone;
    }
 
-
    @Override
-   public default void readExternal( ObjectInput in ) throws IOException, ClassNotFoundException {
+   default void readExternal( ObjectInput in ) throws IOException, ClassNotFoundException {
       try {
          ClassConfig config = getConfig(getClass());
 
@@ -211,7 +180,7 @@ public interface ExternalizableBean extends Externalizable {
                      ft = FieldType.EnumSetOld;
                   } else if ( CLASS_CHANGED_INCOMPATIBLY.get(getClass()) == null ) {
                      LoggerFactory.getLogger(getClass())
-                           .error("The field type of index " + fieldIndex + // 
+                           .error("The field type of index " + fieldIndex + //
                               " in " + getClass().getSimpleName() + //
                               " appears to have changed from " + FieldType.forId(fieldTypeId) + //
                               " (version in dump) to " + ft + " (current class version)." + //
@@ -584,7 +553,7 @@ public interface ExternalizableBean extends Externalizable {
                break;
             }
             case ExternalizableArray: {
-               Externalizable[] d = readExternalizableArray(in, f.getType().getComponentType(), defaultType, config);
+               Externalizable[] d = readExternalizableArray(in, f.getType().getComponentType(), config);
                f.set(this, d);
                break;
             }
@@ -596,7 +565,7 @@ public interface ExternalizableBean extends Externalizable {
                   Class externalizableClass = f.getType().getComponentType();
                   d = (Externalizable[][])Array.newInstance(externalizableClass, size);
                   for ( int k = 0, length = d.length; k < length; k++ ) {
-                     d[k] = readExternalizableArray(in, f.getType().getComponentType().getComponentType(), defaultType, config);
+                     d[k] = readExternalizableArray(in, f.getType().getComponentType().getComponentType(),  config);
                   }
                }
                f.set(this, d);
@@ -692,6 +661,11 @@ public interface ExternalizableBean extends Externalizable {
                }
                break;
             }
+            case Padding: {
+               int bytesToRead = in.readShort();
+               in.read(new byte[bytesToRead]);
+               break;
+            }
             default: {
                Object o = null;
                boolean isNotNull = in.readBoolean();
@@ -716,9 +690,16 @@ public interface ExternalizableBean extends Externalizable {
    }
 
    @Override
-   public default void writeExternal( ObjectOutput out ) throws IOException {
+   default void writeExternal( ObjectOutput out ) throws IOException {
       try {
          ClassConfig _config = getConfig(getClass());
+
+         int bytesWrittenToStream = 0;
+         DataOutputStream dataOutputStream = null;
+         if ( out instanceof DataOutputStream ) {
+            dataOutputStream = (DataOutputStream)out;
+            bytesWrittenToStream = dataOutputStream.size();
+         }
 
          ObjectOutput originalOut = out;
          StreamCache streamCache = null;
@@ -1037,9 +1018,21 @@ public interface ExternalizableBean extends Externalizable {
                if ( enumSet != null ) {
                   out.writeInt(enumSet.size());
                   for ( Enum e : (Set<Enum>)enumSet ) {
-                     DumpUtils.writeUTF(e.name(), out); // not writeString(), since the value cannot be null  
+                     DumpUtils.writeUTF(e.name(), out); // not writeString(), since the value cannot be null
                   }
                }
+               break;
+            }
+            case Padding: {
+               short padding = 0;
+               if ( dataOutputStream != null && _config._sizeModulo > 0 ) {
+                  bytesWrittenToStream = dataOutputStream.size() - bytesWrittenToStream;
+                  bytesWrittenToStream += 2; // we need a short to store the amount of padding
+                  int modulo = bytesWrittenToStream % _config._sizeModulo;
+                  padding = (short)(_config._sizeModulo - modulo);
+               }
+               out.writeShort(padding);
+               out.write(new byte[padding]);
                break;
             }
             default:
@@ -1064,6 +1057,54 @@ public interface ExternalizableBean extends Externalizable {
       catch ( Exception e ) {
          throw new RuntimeException("Failed to externalize class " + getClass().getName(), e);
       }
+   }
+
+
+   /**
+    * By adding this annotation to a class implementing ExternalizableBean, you can make certain, that the byte[]
+    * created by externalizing has a size where <code>size%sizeModulo==0</code>, i.e. it is divisible by
+    * <code>sizeModulo</code>.<br>
+    *
+    * BEWARE: When using this annotation, the max value for @externalize index is 254, since 255 is needed for padding.
+    */
+   @Retention(RetentionPolicy.RUNTIME)
+   @Target({ ElementType.TYPE })
+   @interface externalizationPadding {
+
+      short sizeModulo();
+   }
+
+   /**
+    * Annotating fields gives a better performance compared to methods. You can annotate even private fields.
+    * If you annotate methods, it's enough to annotate either the getter or the setter. Of course you can also annotate both, but the indexes must match.
+    */
+   @Retention(RetentionPolicy.RUNTIME)
+   @Target({ ElementType.FIELD, ElementType.METHOD })
+   @interface externalize {
+
+      /** The default type of the first generic argument, like in <code>List&lt;GenericType0&gt;</code>.
+       * You should set this, if the most frequent type of this container's generic argument (the List values in the example) does not match the declared generic type.
+       * In that case setting this value improves both space requirement and performance.  */
+      Class defaultGenericType0() default System.class; // System.class is just a placeholder for nothing, in order to make this argument optional
+
+      /** The default type of the second generic argument, like in <code>Map&lt;K, GenericType1&gt;</code>.
+       * You should set this, if the most frequent type of this container's second generic argument (the Map values in the example) does not match the declared generic type.
+       * In that case setting this value improves both space requirement and performance.  */
+      Class defaultGenericType1() default System.class; // System.class is just a placeholder for nothing, in order to make this argument optional
+
+      /** The default type of this field.
+       * You should set this, if the most frequent type of this field's instances does not match the declared field type.
+       * In that case setting this value improves both space requirement and performance.  */
+      Class defaultType() default System.class; // System.class is just a placeholder for nothing, in order to make this argument optional
+
+      /**
+       * Aka index. Must be unique. Convention is to start from 1. To guarantee compatibility between revisions of a bean,
+       * you may never change the field type or any of the default*Types while reusing the same index specified with this parameter.
+       * Doing so will corrupt old data dumps.<br>
+       *
+       * If you need values bigger than 127, simply write (byte)200, that will work out fine.
+       */
+      byte value();
    }
 
 }
