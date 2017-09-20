@@ -75,7 +75,7 @@ import util.time.StopWatch;
 @SuppressWarnings({ "WeakerAccess", "unchecked", "unused" })
 public class Dump<E> implements DumpInput<E> {
 
-   private static final Logger LOG = LoggerFactory.getLogger(Dump.class);
+   private static final Logger _log = LoggerFactory.getLogger(Dump.class);
 
    // TODO add pack() and a threshold based repack mechanism which prunes deletions from dump and indexes
    // TODO add registry for Iterators and close all open iterators in close()
@@ -102,12 +102,12 @@ public class Dump<E> implements DumpInput<E> {
                continue;
             }
             try {
-               LOG.error("Dump instance " + openedDump.getDumpFile()
+               _log.error("Dump instance " + openedDump.getDumpFile()
                   + " was not closed correctly. This is a bug in its usage and might result in data loss! Closing it now...");
                openedDump.close();
             }
             catch ( IOException e ) {
-               LOG.error("Failed to close dump " + openedDump.getDumpFile(), e);
+               _log.error("Failed to close dump " + openedDump.getDumpFile(), e);
             }
          }
       }));
@@ -227,7 +227,10 @@ public class Dump<E> implements DumpInput<E> {
          readDeletions();
 
          if ( shouldBePruned() ) {
+            StopWatch t = new StopWatch();
+            _log.info("need to prune {} deleted entries from {}", _deletedPositions.size(), _dumpFile);
             prune();
+            _log.info("...pruned {} in {}", _dumpFile, t);
          }
 
          FileOutputStream fileOutputStream = new FileOutputStream(_dumpFile, true);
@@ -248,7 +251,7 @@ public class Dump<E> implements DumpInput<E> {
             close();
          }
          catch ( IOException arghargh ) {
-            LOG.warn("Failed to close dump after failure in initialization.", arghargh);
+            _log.warn("Failed to close dump after failure in initialization.", arghargh);
          }
          throw new RuntimeException("Failed to initialize dump using dump file " + _dumpFile, argh);
       }
@@ -774,10 +777,10 @@ public class Dump<E> implements DumpInput<E> {
 
             _dumpLock = getMetaRAF().getChannel().tryLock();
             if ( _dumpLock == null ) {
-               LOG.info("meta file " + _metaFile + " is already locked. waiting...");
+               _log.info("meta file " + _metaFile + " is already locked. waiting...");
                StopWatch time = new StopWatch();
                _dumpLock = _metaRaf.getChannel().lock();
-               LOG.info("got the lock on " + _metaFile + " after " + time);
+               _log.info("got the lock on " + _metaFile + " after " + time);
             }
             return true;
          }
@@ -796,7 +799,7 @@ public class Dump<E> implements DumpInput<E> {
    @Override
    protected void finalize() throws Throwable {
       if ( !_isClosed ) {
-         LOG.error("Dump instance " + getDumpFile() + " was not closed correctly. This is a bug in its usage and might result in data loss!");
+         _log.error("Dump instance " + getDumpFile() + " was not closed correctly. This is a bug in its usage and might result in data loss!");
       }
       close();
       super.finalize();
@@ -859,6 +862,10 @@ public class Dump<E> implements DumpInput<E> {
             throw new RuntimeException("unable to unlock dump file " + _metaFile, argh);
          }
       }
+   }
+
+   protected boolean shouldBePruned() {
+      return _deletedPositions.size() > PRUNE_THRESHOLD;
    }
 
    void addIndex( DumpIndex index ) {
@@ -1003,10 +1010,6 @@ public class Dump<E> implements DumpInput<E> {
       }
       bytes.add(n);
       return bytes.toArray();
-   }
-
-   private boolean shouldBePruned() {
-      return _deletedPositions.size() > PRUNE_THRESHOLD;
    }
 
 
