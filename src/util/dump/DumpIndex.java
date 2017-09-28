@@ -7,9 +7,11 @@ import java.io.DataOutputStream;
 import java.io.Externalizable;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.List;
@@ -101,10 +103,11 @@ public abstract class DumpIndex<E> implements Closeable {
    }
 
 
-   protected final Dump<E>       _dump;
+   protected final Dump<E> _dump;
 
    private final File            _lookupFile;
    private final File            _metaFile;
+   private RandomAccessFile      _metaRaf;
    protected DataOutputStream    _lookupOutputStream;
    protected final FieldAccessor _fieldAccessor;
    protected final boolean       _fieldIsInt;
@@ -114,8 +117,8 @@ public abstract class DumpIndex<E> implements Closeable {
    protected final boolean       _fieldIsString;
    protected final boolean       _fieldIsExternalizable;
 
-   private final File            _updatesFile;
-   private DataOutputStream      _updatesOutput;
+   private final File       _updatesFile;
+   private DataOutputStream _updatesOutput;
 
 
    /**
@@ -168,6 +171,10 @@ public abstract class DumpIndex<E> implements Closeable {
    @Override
    public void close() throws IOException {
       writeMeta();
+      if ( _metaRaf != null ) {
+         _metaRaf.close();
+         _metaRaf = null;
+      }
       if ( _lookupOutputStream != null ) {
          _lookupOutputStream.close();
       }
@@ -433,19 +440,12 @@ public abstract class DumpIndex<E> implements Closeable {
    protected abstract void load();
 
    protected void writeMeta() throws IOException {
-      DataOutputStream out = null;
-      try {
-         out = new DataOutputStream(new FileOutputStream(_metaFile));
-         long dumpSequence = _dump._sequence;
-         out.writeLong(dumpSequence);
-         out.writeUTF(_dump._beanClass.getName());
-         out.writeUTF(getIndexType());
-      }
-      finally {
-         if ( out != null ) {
-            out.close();
-         }
-      }
+      RandomAccessFile metaRAF = getMetaRAF();
+      metaRAF.seek(0);
+      metaRAF.writeLong(_dump._sequence);
+      metaRAF.writeUTF(_dump._beanClass.getName());
+      metaRAF.writeUTF(getIndexType());
+      metaRAF.setLength(metaRAF.getFilePointer());
    }
 
    abstract void add( E o, long pos );
@@ -465,6 +465,15 @@ public abstract class DumpIndex<E> implements Closeable {
    }
 
    abstract void update( long pos, E oldItem, E newItem );
+
+   private RandomAccessFile getMetaRAF() throws FileNotFoundException {
+      synchronized ( this ) {
+         if ( _metaRaf == null ) {
+            _metaRaf = new RandomAccessFile(_metaFile, "rw");
+         }
+         return _metaRaf;
+      }
+   }
 
 
    public static class IndexMeta {
