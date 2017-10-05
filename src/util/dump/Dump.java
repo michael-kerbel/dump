@@ -387,7 +387,10 @@ public class Dump<E> implements DumpInput<E> {
          }
 
          _deletedPositions.add(pos);
-         _cache.remove(pos);
+         if ( _cache != null ) {
+            _cache.remove(pos);
+         }
+
          try {
             // lazy open/create deletions file
             if ( _deletionsOutput == null ) {
