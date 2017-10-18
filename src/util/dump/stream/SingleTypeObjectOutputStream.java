@@ -110,6 +110,7 @@ public class SingleTypeObjectOutputStream<E extends Externalizable> extends Data
 
          if ( _reusableCompressBytesArray != null && _reusableCompressBytesArray.length > 128 * 1024 ) {
             _reusableCompressBytesArray = new byte[8192];
+            _compressionByteBuffer = new FastByteArrayOutputStream();
          }
       }
    }
