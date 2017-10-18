@@ -87,6 +87,7 @@ public class SingleTypeObjectInputStream<E extends Externalizable> extends DataI
          }
          if ( _reusableUncompressBytesArray != null && _reusableUncompressBytesArray.length > 128 * 1024 ) {
             _reusableUncompressBytesArray = new byte[8192];
+            _compressionByteBuffer = new ByteArrayInputStream(_reusableUncompressBytesArray);
          }
       }
    }
