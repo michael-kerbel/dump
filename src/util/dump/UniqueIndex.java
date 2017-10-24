@@ -63,6 +63,9 @@ public class UniqueIndex<E> extends DumpIndex<E> {
             _lookupOutputStream.writeLong(key);
          } else {
             Object key = getObjectKey(o);
+            if ( key == null ) {
+               return;
+            }
             if ( _lookupObject.containsKey(key) ) {
                throw new DuplicateKeyException("Dump already contains an instance with the key " + key);
             }
@@ -324,7 +327,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
                in = new DataInputStream(new BufferedInputStream(new FileInputStream(getLookupFile())));
                while ( true ) {
                   Object payload = readPayload(in);
-                  if(payload != null)
+                  if ( payload != null )
                      mayEOF = false;
                   int key = in.readInt();
                   mayEOF = false;
@@ -370,7 +373,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
                in = new DataInputStream(new BufferedInputStream(new FileInputStream(getLookupFile())));
                while ( true ) {
                   Object payload = readPayload(in);
-                  if(payload != null)
+                  if ( payload != null )
                      mayEOF = false;
                   long key = in.readLong();
                   mayEOF = false;
@@ -416,7 +419,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
                in = new DataInputStream(new BufferedInputStream(new FileInputStream(getLookupFile())));
                while ( true ) {
                   Object payload = readPayload(in);
-                  if(payload != null)
+                  if ( payload != null )
                      mayEOF = false;
                   String key = in.readUTF();
                   mayEOF = false;
@@ -471,7 +474,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
             try {
                while ( true ) {
                   Object payload = readPayload(in);
-                  if(payload != null)
+                  if ( payload != null )
                      mayEOF = false;
                   Object key = in.readObject();
                   mayEOF = false;
@@ -555,6 +558,8 @@ public class UniqueIndex<E> extends DumpIndex<E> {
          }
       } else {
          Object key = getObjectKey(o);
+         if ( key == null )
+            return;
          long p = _lookupObject.get(key);
          if ( p == pos ) {
             _lookupObject.remove(key);
