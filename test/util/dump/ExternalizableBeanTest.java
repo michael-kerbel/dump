@@ -20,6 +20,7 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -32,8 +33,8 @@ import java.util.UUID;
 
 import org.junit.Test;
 
-import util.dump.ExternalizableBean.externalize;
 import util.dump.ExternalizableBean.externalizationPadding;
+import util.dump.ExternalizableBean.externalize;
 import util.dump.stream.SingleTypeObjectInputStream;
 import util.dump.stream.SingleTypeObjectOutputStream;
 import util.reflection.Reflection;
@@ -44,12 +45,12 @@ public class ExternalizableBeanTest {
    private static final int NUMBER_OF_INSTANCES_TO_CREATE = 100;
    private static Random    r;
 
+
    static {
       long seed = System.currentTimeMillis();
       System.out.println("random seed: " + seed);
       r = new Random(seed);
    }
-
 
    public static Externalizable newRandomInstance( Class testClass ) throws Exception {
 
@@ -371,21 +372,6 @@ public class ExternalizableBeanTest {
    }
 
    @Test
-   public void testStreamCache() throws Exception {
-      TestBeanStreamCache b = new TestBeanStreamCache();
-      b._list1 = null;
-      b._list2 = new LinkedList<Externalizable>();
-      TestBeanStreamCache bb = new TestBeanStreamCache();
-      b._list2.add(bb);
-      bb._list1 = new LinkedList<Externalizable>();
-      bb._list1.add(new TestBeanStreamCache());
-      bb._list2 = new LinkedList<Externalizable>();
-      Externalizable[] t = new Externalizable[] { b };
-
-      readAndAssert(write(t), TestBeanStreamCache.class, t);
-   }
-
-   @Test
    public void testCompatibility() throws Exception {
       testCompatibility(TestBean3.class, TestBean4.class);
       testCompatibility(TestBean4.class, TestBean3.class);
@@ -412,6 +398,26 @@ public class ExternalizableBeanTest {
    }
 
    @Test
+   public void testPadding() throws IOException {
+      for ( int i = 0; i < 2001; i++ ) {
+         TestBeanPadding bean = new TestBeanPadding();
+         bean._data = new byte[i];
+         byte[] bytes = SingleTypeObjectOutputStream.writeSingleInstance(bean);
+         assertThat(bytes.length % 1000).as("written wrong padding for i=" + i).isEqualTo(0);
+
+         TestBeanPadding beanFromBytes = SingleTypeObjectInputStream.readSingleInstance(TestBeanPadding.class, bytes);
+         assertThat(beanFromBytes).as("Failed to read padded instance correctly").isEqualTo(bean);
+      }
+   }
+
+   @Test
+   public void testPrivateCollections() throws Exception {
+      Externalizable[] t = new Externalizable[] { new TestBean7() };
+
+      readAndAssert(write(t), TestBean7.class, t);
+   }
+
+   @Test
    public void testSimple() throws Exception {
 
       Class testClass = TestBean.class; // put your class name here to test whether Externalization works
@@ -425,21 +431,23 @@ public class ExternalizableBeanTest {
    }
 
    @Test
-   public void testUpwardCompatibility() throws Exception {
-      testCompatibility(TestBean.class, TestBean2.class);
+   public void testStreamCache() throws Exception {
+      TestBeanStreamCache b = new TestBeanStreamCache();
+      b._list1 = null;
+      b._list2 = new LinkedList<Externalizable>();
+      TestBeanStreamCache bb = new TestBeanStreamCache();
+      b._list2.add(bb);
+      bb._list1 = new LinkedList<Externalizable>();
+      bb._list1.add(new TestBeanStreamCache());
+      bb._list2 = new LinkedList<Externalizable>();
+      Externalizable[] t = new Externalizable[] { b };
+
+      readAndAssert(write(t), TestBeanStreamCache.class, t);
    }
 
    @Test
-   public void testPadding() throws IOException {
-      for(int i = 0; i<2001; i++){
-         TestBeanPadding bean = new TestBeanPadding();
-         bean._data = new byte[i];
-         byte[] bytes = SingleTypeObjectOutputStream.writeSingleInstance(bean);
-         assertThat(bytes.length%1000).as("written wrong padding for i="+i).isEqualTo(0);
-
-         TestBeanPadding beanFromBytes = SingleTypeObjectInputStream.readSingleInstance(TestBeanPadding.class, bytes);
-         assertThat(beanFromBytes).as("Failed to read padded instance correctly").isEqualTo(bean);
-      }
+   public void testUpwardCompatibility() throws Exception {
+      testCompatibility(TestBean.class, TestBean2.class);
    }
 
    protected Externalizable[] readAndAssert( byte[] bytes, Class testClass, Externalizable[] t ) throws Exception {
@@ -537,7 +545,9 @@ public class ExternalizableBeanTest {
             return true;
          }
       }
-      if ( !c.equals(cc) ) {
+      boolean cIsPrivateArrayList = "java.util.Arrays$ArrayList".equals(c.getName());
+      boolean ccIsPrivateArrayList = "java.util.Arrays$ArrayList".equals(cc.getName());
+      if ( !c.equals(cc) && !cIsPrivateArrayList && !ccIsPrivateArrayList ) {
          return false;
       }
       if ( Externalizable.class.isAssignableFrom(c) ) {
@@ -770,25 +780,12 @@ public class ExternalizableBeanTest {
    }
 
 
-   public static class TestBeanStreamCache implements ExternalizableBean, Comparable<TestBean> {
+   public enum TestEnum {
+      EnumValue1, EnumValue2, EnumValue3, EnumValue4, EnumValue5;
+   }
 
-      @Override
-      public String toString() {
-         return "TestBeanStreamCache [_list1=" + _list1 + ", _list2=" + _list2 + "]";
-      }
-
-
-      @externalize(1)
-      public List<Externalizable> _list1;
-
-      @externalize(2)
-      public List<Externalizable> _list2;
-
-
-      @Override
-      public int compareTo( TestBean o ) {
-         return 0;
-      }
+   public enum TestEnum2 {
+      EnumValue1, EnumValue5, EnumValue3, EnumValue6, EnumValue7;
    }
 
    public static class TestBean implements ExternalizableBean, Comparable<TestBean> {
@@ -866,8 +863,13 @@ public class ExternalizableBeanTest {
       @externalize(37)
       public Set<String>          _setOfStrings;
 
-      public int                  _i;                                                                                                                                                                                                                                                                                                                                                                                                                                                                            // this member var gets initialized randomly only if the field is public - a limitation of this testcase
+      public int _i; // this member var gets initialized randomly only if the field is public - a limitation of this testcase
 
+
+      @Override
+      public int compareTo( TestBean o ) {
+         return 0;
+      }
 
       @externalize(25)
       public int getInt() {
@@ -876,11 +878,6 @@ public class ExternalizableBeanTest {
 
       public void setInt( int i ) {
          _i = i;
-      }
-
-      @Override
-      public int compareTo( TestBean o ) {
-         return 0;
       }
    }
 
@@ -919,6 +916,11 @@ public class ExternalizableBeanTest {
       public EnumSet<TestEnum> _enumSet;
       public TestEnum          _enum;
 
+
+      @Override
+      public int compareTo( TestBean3 o ) {
+         return 0;
+      }
 
       @externalize(1)
       public Boolean getBoolean() {
@@ -1098,11 +1100,6 @@ public class ExternalizableBeanTest {
 
       public void setString( String string ) {
          _string = string;
-      }
-
-      @Override
-      public int compareTo( TestBean3 o ) {
-         return 0;
       }
    }
 
@@ -1303,6 +1300,11 @@ public class ExternalizableBeanTest {
       public TestEnum          _enum;
 
 
+      @Override
+      public int compareTo( TestBean5 o ) {
+         return 0;
+      }
+
       @externalize(20)
       public TestEnum getEnum() {
          return _enum;
@@ -1320,11 +1322,6 @@ public class ExternalizableBeanTest {
       public void setEnumSet( EnumSet<TestEnum> enumSet ) {
          _enumSet = enumSet;
       }
-
-      @Override
-      public int compareTo( TestBean5 o ) {
-         return 0;
-      }
    }
 
    public static class TestBean6 implements ExternalizableBean, Comparable<TestBean6> {
@@ -1334,6 +1331,11 @@ public class ExternalizableBeanTest {
       public EnumSet<TestEnum2> _enumSet;
       public TestEnum2          _enum;
 
+
+      @Override
+      public int compareTo( TestBean6 o ) {
+         return 0;
+      }
 
       @externalize(20)
       public TestEnum2 getEnum() {
@@ -1352,11 +1354,28 @@ public class ExternalizableBeanTest {
       public void setEnumSet( EnumSet<TestEnum2> enumSet ) {
          _enumSet = enumSet;
       }
+   }
 
-      @Override
-      public int compareTo( TestBean6 o ) {
-         return 0;
-      }
+   public static class TestBean7 implements ExternalizableBean {
+
+      @externalize(1)
+      public List<String> _list1 = Collections.EMPTY_LIST;
+      @externalize(2)
+      public List<String> _list2 = Collections.emptyList();
+      @externalize(3)
+      public List<String> _list3 = Collections.singletonList("a");
+      @externalize(4)
+      public List<String> _list4 = Collections.unmodifiableList(new ArrayList<>(Collections.singletonList("a")));
+      @externalize(5)
+      public List<String> _list5 = Arrays.asList("a", "b");
+      @externalize(6)
+      public Set<String>  _set1  = Collections.EMPTY_SET;
+      @externalize(7)
+      public Set<String>  _set2  = Collections.emptySet();
+      @externalize(8)
+      public Set<String>  _set3  = Collections.singleton("a");
+      @externalize(9)
+      public Set<String>  _set4  = Collections.unmodifiableSet(new HashSet<>(Collections.singletonList("a")));
    }
 
    public static class TestBeanCyclic implements ExternalizableBean {
@@ -1365,23 +1384,12 @@ public class ExternalizableBeanTest {
       TestBeanCyclic _other;
    }
 
-   public static class TestBeanSimple implements ExternalizableBean {
-
-      // the member vars get initialized randomly only if the field is public - a limitation of this testcase
-
-      @externalize(1)
-      public int     _int;
-      @externalize(2)
-      public boolean _booleanPrimitive;
-      @externalize(3)
-      public byte    _bytePrimitive;
-   }
-
    @externalizationPadding(sizeModulo = 1000)
-   public static class TestBeanPadding implements ExternalizableBean{
+   public static class TestBeanPadding implements ExternalizableBean {
 
       @externalize(1)
       public byte[] _data;
+
 
       @Override
       public boolean equals( Object o ) {
@@ -1403,11 +1411,34 @@ public class ExternalizableBeanTest {
       }
    }
 
-   public enum TestEnum {
-      EnumValue1, EnumValue2, EnumValue3, EnumValue4, EnumValue5;
+   public static class TestBeanSimple implements ExternalizableBean {
+
+      // the member vars get initialized randomly only if the field is public - a limitation of this testcase
+
+      @externalize(1)
+      public int     _int;
+      @externalize(2)
+      public boolean _booleanPrimitive;
+      @externalize(3)
+      public byte    _bytePrimitive;
    }
 
-   public enum TestEnum2 {
-      EnumValue1, EnumValue5, EnumValue3, EnumValue6, EnumValue7;
+   public static class TestBeanStreamCache implements ExternalizableBean, Comparable<TestBean> {
+
+      @externalize(1)
+      public List<Externalizable> _list1;
+      @externalize(2)
+      public List<Externalizable> _list2;
+
+
+      @Override
+      public int compareTo( TestBean o ) {
+         return 0;
+      }
+
+      @Override
+      public String toString() {
+         return "TestBeanStreamCache [_list1=" + _list1 + ", _list2=" + _list2 + "]";
+      }
    }
 }

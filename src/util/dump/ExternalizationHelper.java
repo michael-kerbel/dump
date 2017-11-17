@@ -1,7 +1,5 @@
 package util.dump;
 
-import javax.annotation.Nonnull;
-
 import java.io.DataInput;
 import java.io.Externalizable;
 import java.io.IOException;
@@ -25,6 +23,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+
+import javax.annotation.Nonnull;
 
 import org.slf4j.LoggerFactory;
 
@@ -86,7 +86,10 @@ class ExternalizationHelper {
       return d;
    }
 
-   static Collection readCollectionContainer( ObjectInput in, Class defaultType, boolean isDefaultType, int size, ClassConfig config ) throws Exception {
+   static Collection readCollectionContainer( ObjectInput in, Class defaultType, boolean isDefaultType, int size, ClassConfig config,
+         ThrowingSupplier instanceReader ) throws Exception {
+
+      boolean unmodifiableList = false, unmodifiableSet = false;
       Collection d;
       if ( isDefaultType ) {
          if ( defaultType.equals(ArrayList.class) ) {
@@ -98,9 +101,39 @@ class ExternalizationHelper {
          }
       } else {
          String className = in.readUTF();
-         Class c = forName(className, config);
-         d = (Collection)c.newInstance();
+         if ( "java.util.Collections$SingletonList".equals(className) ) {
+            d = Collections.singletonList(instanceReader.get());
+            return d;
+         } else if ( "java.util.Collections$SingletonSet".equals(className) ) {
+            d = Collections.singleton(instanceReader.get());
+            return d;
+         } else if ( "java.util.Collections$EmptyList".equals(className) ) {
+            d = Collections.emptyList();
+         } else if ( "java.util.Collections$EmptySet".equals(className) ) {
+            d = Collections.emptySet();
+         } else if ( "java.util.Collections$UnmodifiableRandomAccessList".equals(className) || "java.util.Collections$UnmodifiableList".equals(className) ) {
+            d = new ArrayList<>();
+            unmodifiableList = true;
+         } else if ( "java.util.Collections$UnmodifiableSet".equals(className) ) {
+            d = new HashSet<>();
+            unmodifiableSet = true;
+         } else if ( "java.util.Arrays$ArrayList".equals(className) ) {
+            d = new ArrayList<>();
+         } else {
+            Class c = forName(className, config);
+            d = (Collection)c.newInstance();
+         }
       }
+
+      for ( int k = 0; k < size; k++ ) {
+         d.add(instanceReader.get());
+      }
+
+      if ( unmodifiableList )
+         d = Collections.unmodifiableList((List)d);
+      else if ( unmodifiableSet )
+         d = Collections.unmodifiableSet((Set)d);
+
       return d;
    }
 
@@ -111,12 +144,10 @@ class ExternalizationHelper {
       if ( isNotNull ) {
          boolean isDefaultType = in.readBoolean();
          int size = in.readInt();
-         d = readCollectionContainer(in, defaultType, isDefaultType, size, config);
-
          Class[] lastNonDefaultClass = new Class[1];
-         for ( int k = 0; k < size; k++ ) {
-            d.add(readExternalizable(in, defaultGenericType, lastNonDefaultClass, config));
-         }
+         d = readCollectionContainer(in, defaultType, isDefaultType, size, config,
+            () -> readExternalizable(in, defaultGenericType, lastNonDefaultClass, config));
+
       }
       if ( f != null ) {
          f.set(thisInstance, d);
@@ -130,16 +161,13 @@ class ExternalizationHelper {
       if ( isNotNull ) {
          boolean isDefaultType = in.readBoolean();
          int size = in.readInt();
-         d = readCollectionContainer(in, defaultType, isDefaultType, size, config);
-
-         for ( int k = 0; k < size; k++ ) {
+         d = readCollectionContainer(in, defaultType, isDefaultType, size, config, () -> {
             String s = null;
-            isNotNull = in.readBoolean();
-            if ( isNotNull ) {
+            if ( in.readBoolean() ) {
                s = DumpUtils.readUTF(in);
             }
-            d.add(s);
-         }
+            return s;
+         });
       }
       if ( f != null ) {
          f.set(thisInstance, d);
@@ -480,6 +508,12 @@ class ExternalizationHelper {
    }
 
 
+   @FunctionalInterface
+   public interface ThrowingSupplier<T> {
+
+      T get() throws Exception;
+   }
+
    public enum FieldType {
       pInt(int.class, 0), //
       pBoolean(boolean.class, 1), //
@@ -518,13 +552,13 @@ class ExternalizationHelper {
       pByteArrayArray(byte[][].class, 34), //
       pDoubleArrayArray(double[][].class, 35), //
       pFloatArrayArray(float[][].class, 36), //
-      pLongArrayArray(long[][].class, 37), //      
+      pLongArrayArray(long[][].class, 37), //
       EnumOld(Void.class, 38), // Void is just a placeholder - this FieldType is deprecated
       EnumSetOld(Override.class, 39), // Ovcrride is just a placeholder - this FieldType is deprecated
-      ListOfStrings(System.class, 40, true), // System is just a placeholder - this FieldType is handled specially 
-      SetOfExternalizables(Set.class, 41, true), // 
-      SetOfStrings(Runtime.class, 42, true), // Runtime is just a placeholder - this FieldType is handled specially 
-      Enum(Enum.class, 43, true), // 
+      ListOfStrings(System.class, 40, true), // System is just a placeholder - this FieldType is handled specially
+      SetOfExternalizables(Set.class, 41, true), //
+      SetOfStrings(Runtime.class, 42, true), // Runtime is just a placeholder - this FieldType is handled specially
+      Enum(Enum.class, 43, true), //
       EnumSet(EnumSet.class, 44, true), //
       Padding(Thread.class, 45), //
       // TODO add Map (beware of Collections.*Map or Treemaps using custom Comparators!)
@@ -1012,5 +1046,4 @@ class ExternalizationHelper {
          }
       }
    }
-
 }
