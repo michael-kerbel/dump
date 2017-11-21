@@ -18,6 +18,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -149,6 +150,14 @@ public class ExternalizableBeanTest {
             }
          } else if ( type == short.class ) {
             f.setShort(t, (short)r.nextInt());
+         } else if ( type == BigDecimal.class ) {
+            boolean isNotNull = r.nextBoolean();
+            if ( isNotNull ) {
+               BigDecimal d = new BigDecimal(r.nextDouble());
+               f.set(t, d);
+            } else {
+               f.set(t, null);
+            }
          } else if ( type == String.class ) {
             boolean isNotNull = r.nextBoolean();
             if ( isNotNull ) {
@@ -862,6 +871,8 @@ public class ExternalizableBeanTest {
       public Set<Externalizable>  _setOfExternalizable;
       @externalize(37)
       public Set<String>          _setOfStrings;
+      @externalize(38)
+      public BigDecimal           _bigDecimal;
 
       public int _i; // this member var gets initialized randomly only if the field is public - a limitation of this testcase
 

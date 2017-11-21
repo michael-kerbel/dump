@@ -44,6 +44,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.Array;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.Set;
@@ -382,6 +384,19 @@ public interface ExternalizableBean extends Externalizable {
                }
                break;
             }
+            case BigDecimal: {
+               BigDecimal d = null;
+               boolean isNotNull = in.readBoolean();
+               if ( isNotNull ) {
+                  byte[] bytes = readByteArray(in);
+                  int scale = in.readInt();
+                  d = new BigDecimal(new BigInteger(bytes), scale);
+               }
+               if ( f != null ) {
+                  f.set(this, d);
+               }
+               break;
+            }
             case pByteArray: {
                byte[] d = readByteArray(in);
                if ( f != null ) {
@@ -565,7 +580,7 @@ public interface ExternalizableBean extends Externalizable {
                   Class externalizableClass = f.getType().getComponentType();
                   d = (Externalizable[][])Array.newInstance(externalizableClass, size);
                   for ( int k = 0, length = d.length; k < length; k++ ) {
-                     d[k] = readExternalizableArray(in, f.getType().getComponentType().getComponentType(),  config);
+                     d[k] = readExternalizableArray(in, f.getType().getComponentType().getComponentType(), config);
                   }
                }
                f.set(this, d);
@@ -857,6 +872,16 @@ public interface ExternalizableBean extends Externalizable {
                out.writeBoolean(s != null);
                if ( s != null ) {
                   out.writeShort(s);
+               }
+               break;
+            }
+            case BigDecimal: {
+               BigDecimal d = (BigDecimal)f.get(this);
+               out.writeBoolean(d != null);
+               if ( d != null ) {
+                  byte[] bytes = d.unscaledValue().toByteArray();
+                  writeByteArray(bytes, out);
+                  out.writeInt(d.scale());
                }
                break;
             }
