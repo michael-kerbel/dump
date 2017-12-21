@@ -31,7 +31,7 @@ import util.io.IOUtils;
 public enum Compression {
    GZipLevel0, GZipLevel1, GZipLevel2, GZipLevel3, GZipLevel4, GZipLevel5, GZipLevel6, GZipLevel7, GZipLevel8, GZipLevel9, Snappy, LZ4;
 
-   private static LZ4Compressor       _lz4Compressor   = null;
+   private static LZ4Compressor _lz4Compressor = null;
    private static LZ4FastDecompressor _lz4Decompressor = null;
 
 
@@ -87,6 +87,16 @@ public enum Compression {
       return bytes;
    }
 
+   private LZ4Compressor getLZ4Compressor() {
+      initLZ4();
+      return _lz4Compressor;
+   }
+
+   private LZ4FastDecompressor getLZ4Decompressor() {
+      initLZ4();
+      return _lz4Decompressor;
+   }
+
    private byte[] gunzip( byte[] bytes ) throws IOException {
       ByteArrayOutputStream out = new ByteArrayOutputStream(8192);
       InputStream in = new BufferedInputStream(new GZIPInputStream(new ByteArrayInputStream(bytes)), 8192);
@@ -106,6 +116,18 @@ public enum Compression {
       outputStream.write(bytes, 0, bytesLength);
       IOUtils.close(outputStream);
       return compressedBytes.toByteArray();
+   }
+
+   private void initLZ4() {
+      if ( _lz4Compressor == null ) {
+         synchronized ( getClass() ) {
+            if ( _lz4Compressor == null ) {
+               LZ4Factory factory = LZ4Factory.fastestInstance();
+               _lz4Compressor = factory.fastCompressor();
+               _lz4Decompressor = factory.fastDecompressor();
+            }
+         }
+      }
    }
 
    private byte[] lz4( byte[] bytes, int bytesLength, byte[] target ) {
@@ -130,38 +152,6 @@ public enum Compression {
       return target;
    }
 
-   private byte[] unLZ4( byte[] bytes, byte[] target ) {
-      LZ4FastDecompressor lz4Decompressor = getLZ4Decompressor();
-      int length = (((bytes[0] & 0xff) << 24) + ((bytes[1] & 0xff) << 16) + ((bytes[2] & 0xff) << 8) + ((bytes[3] & 0xff) << 0));
-      if ( target == null || target.length < length ) {
-         target = new byte[length];
-      }
-      lz4Decompressor.decompress(bytes, 4, target, 0, length);
-      return target;
-   }
-
-   private LZ4Compressor getLZ4Compressor() {
-      initLZ4();
-      return _lz4Compressor;
-   }
-
-   private LZ4FastDecompressor getLZ4Decompressor() {
-      initLZ4();
-      return _lz4Decompressor;
-   }
-
-   private void initLZ4() {
-      if ( _lz4Compressor == null ) {
-         synchronized ( getClass() ) {
-            if ( _lz4Compressor == null ) {
-               LZ4Factory factory = LZ4Factory.fastestInstance();
-               _lz4Compressor = factory.fastCompressor();
-               _lz4Decompressor = factory.fastDecompressor();
-            }
-         }
-      }
-   }
-
    private byte[] snappy( byte[] data, int dataLength, byte[] target ) {
       int length = org.iq80.snappy.Snappy.maxCompressedLength(dataLength) + 4;
       if ( target == null || target.length < length ) {
@@ -175,8 +165,22 @@ public enum Compression {
       return target;
    }
 
+   private byte[] unLZ4( byte[] bytes, byte[] target ) {
+      LZ4FastDecompressor lz4Decompressor = getLZ4Decompressor();
+      int length = (((bytes[0] & 0xff) << 24) + ((bytes[1] & 0xff) << 16) + ((bytes[2] & 0xff) << 8) + ((bytes[3] & 0xff) << 0));
+      if ( length > 100_000_000 )
+         throw new RuntimeException("insane size for decompressed length:" + length + " - failing now to prevent OutOfMemoryErrors");
+      if ( target == null || target.length < length ) {
+         target = new byte[length];
+      }
+      lz4Decompressor.decompress(bytes, 4, target, 0, length);
+      return target;
+   }
+
    private byte[] unsnappy( byte[] bytes, byte[] target ) {
       int length = org.iq80.snappy.Snappy.getUncompressedLength(bytes, 0);
+      if ( length > 100_000_000 )
+         throw new RuntimeException("insane size for decompressed length:" + length + " - failing now to prevent OutOfMemoryErrors");
       if ( target == null || target.length < length ) {
          target = new byte[length];
       }
