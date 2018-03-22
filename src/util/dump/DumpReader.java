@@ -19,8 +19,6 @@ import util.dump.stream.ObjectStreamProvider;
  *
  * <p>This class implements a type safe object input stream.</p>
  *
- * @author Martin, Michael
- *
  */
 public class DumpReader<E> implements DumpInput<E>, Iterator<E> {
 
