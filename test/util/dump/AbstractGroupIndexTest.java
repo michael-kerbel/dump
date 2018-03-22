@@ -36,8 +36,8 @@ abstract public class AbstractGroupIndexTest {
    protected static final int    BEAN_SIZE     = 10;
 
    protected Random              _random;
-   private final int             _dumpSize;
-   private static File           _tmpdir;
+   protected final int           _dumpSize;
+   protected static File         _tmpdir;
 
 
    @Parameters
