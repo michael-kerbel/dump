@@ -25,8 +25,6 @@ import util.dump.stream.ObjectStreamProvider;
  * constructor. Just in case you DO NOT with a buffered output stream then specify
  * a "0" (zero length) value for the buffered output stream parameter. 
  * 
- * @author Martin, Michael
- *
  */
 public class DumpWriter<E> implements DumpOutput<E> {
 

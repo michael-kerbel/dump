@@ -5,21 +5,19 @@ import java.io.IOException;
 
 
 /**
- * <p>This class encapsulates the temporal File facilities provided by the standart JAVA VM. It allows
+ * <p>This class encapsulates the temporal File facilities provided by the standard JAVA VM. It allows
  * you specifying prefixes, suffixes and standard temporal directory in a reusable object. Useful
- * when working intensivelly with temporal files.</p>
+ * when working intensively with temporal files.</p>
  *
- * <p>This facility class provides the possibility of specifing a two level prefix for the generated
+ * <p>This facility class provides the possibility of specifying a two level prefix for the generated
  * temporal files. This may prove useful when the "main prefix" just represents a special task and the sub prefix
  * just helps you to identify the file type. There is a special constructor allowing you to generate a new
  * <code>TempFileProvider</code> using a running instance as model, this constructor allows you to overwrite the
  * "sub prefix"</p>
  *
- * <p>This class provides also all thinkable possible contructor combinations, so you will always find
+ * <p>This class provides also all thinkable possible constructor combinations, so you will always find
  * the fitting constructor for every situation. Of course you can reconfigure the instance after creating
  * it by using the provided setters.</p>
- *
- * @author Martin
  *
  */
 public class TempFileProvider {

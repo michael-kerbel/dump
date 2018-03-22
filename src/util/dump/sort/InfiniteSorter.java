@@ -24,21 +24,21 @@ import util.dump.stream.ObjectStreamProvider;
  * <p>This sort is guaranteed to be stable: equal elements will not be reordered as a
  * result of the sort.</p>
  *
- * <p>This implementation basically is not limited by the memory avaiable in your System,
+ * <p>This implementation basically is not limited by the memory available in your System,
  * it will swap to the hard disk in order get its job done. This means, that the limit
  * of items to sort is given by the capacity of your hard drive. Of course there is
- * an exception to this rule, your avaiable RAM may prove insuficient only in the case
+ * an exception to this rule, your available RAM may prove insufficient only in the case
  * you configure the Sorter to keep to many objects in memory and this way generating
  * an out of memory error.</p>
  *
- * <p>You can limit the memory usage by specifiyng the maximal number of items and leaf merge
- * streams to by placed in memory. Please notice that this implementation clustes the streams,
+ * <p>You can limit the memory usage by specifying the maximal number of items and leaf merge
+ * streams to by placed in memory. Please notice that this implementation clusters the streams,
  * this means that you may maximally generate <code>(leafstreams * 2) - 1</code> streams in memory.</p>
  *
- * <p>The temportal files will be deleted as long they are no longer needed, you may enforce this
- * by additionally configuring the object to tell the Java VM to delte the files on exit,
- * this is behaviour is by default not active, you should use the corresponsing setter to <code>true</code>
- * in order to activate this functionallity.</p>
+ * <p>The temporal files will be deleted as long they are no longer needed, you may enforce this
+ * by additionally configuring the object to tell the Java VM to delete the files on exit,
+ * this is behaviour is by default not active, you should use the corresponding setter to <code>true</code>
+ * in order to activate this functionality.</p>
  *
  * <p>By default, a new constructed infinite sorter object will habe the following default configuration:</p>
  *
@@ -48,11 +48,6 @@ import util.dump.stream.ObjectStreamProvider;
  * <li>Object comparator: uses default <code>Comparable</code> interface.
  * <li>Temporal Folder: Uses default temporal file provider from Global object
  * </ul>
- *
- * <p>Please notice that this class automatically a CountFlushController feeded with the value set in
- * the static constant <code>DEFAULT_MAX_ITEMS_IN_MEMORY</code></p>
- *
- * @author Martin
  *
  */
 public class InfiniteSorter<E> implements Iterable<E> {
