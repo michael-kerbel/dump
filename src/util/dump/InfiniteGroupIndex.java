@@ -39,11 +39,11 @@ import util.reflection.FieldAccessor;
  * 
  * <b>Beware 2</b>: this implementation is currently not thread-safe! It will fail hard in a multi-threaded environment. 
  */
-public class InfiniteGroupIndex<E> extends DumpIndex<E> implements NonUniqueIndex<E> {
+public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex<E> {
 
-   private static final Logger   LOG                               = LoggerFactory.getLogger(InfiniteGroupIndex.class);
+   private static final Logger LOG = LoggerFactory.getLogger(InfiniteGroupIndex.class);
 
-   private static final int      MAX_POSITIONS_LENGTH_IN_CACHE     = 1000;
+   private static final int MAX_POSITIONS_LENGTH_IN_CACHE = 1000;
    /* TODO [MKR 08.06.2009] add following two methods for efficient lookup of many keys at once:
       public IntKeyMap fullIndexScan(IntSet keys);
       public LongKeyMap fullIndexScan(LongSet keys);
@@ -67,12 +67,12 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E> implements NonUniqueInde
    /**
     * this index is used in order to delay index updates on disk
     */
-   private MyGroupIndex                    _overflowIndex;
+   private MyGroupIndex _overflowIndex;
 
-   private final int                       _maxLookupSizeInMemory;
-   private File                            _objectKeyDumpFile;
+   private final int _maxLookupSizeInMemory;
+   private File      _objectKeyDumpFile;
 
-   private int                             _currentLookupSize;
+   private int _currentLookupSize;
 
    /**
     * case 1:
@@ -82,20 +82,20 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E> implements NonUniqueInde
     *  - key is a complex object: the dump contains the hash codes of the objects and points to a dump position with
     *                             that specific hashcode (see {@link #getObjectKeyPositions(Object)}) in _externalizableKeyDump or _stringKeyDump (resp.)
     */
-   private Dump<IntKeyPosition>            _intKeyDump;
+   private Dump<IntKeyPosition> _intKeyDump;
 
    /**
     * see case 1 of _intKeyDump
     */
-   private Dump<LongKeyPosition>           _longKeyDump;
+   private Dump<LongKeyPosition> _longKeyDump;
 
-   private Dump<StringKeyPosition>         _stringKeyDump;
+   private Dump<StringKeyPosition> _stringKeyDump;
 
    private Dump<ExternalizableKeyPosition> _externalizableKeyDump;
 
-   private long                            _lookupFileLength;
+   private long _lookupFileLength;
 
-   private Map<Object, long[]>             _cache = null;                                             // default is to have no cache
+   private Map<Object, long[]> _cache = null; // default is to have no cache
 
 
    public InfiniteGroupIndex( Dump<E> dump, FieldAccessor fieldAccessor, int maxLookupSizeInMemory ) {
@@ -325,6 +325,34 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E> implements NonUniqueInde
       synchronized ( _dump ) {
          long[] pos = getPositions(key);
          return new GroupIterable(pos);
+      }
+   }
+
+   /**
+    * @param lowerKey inclusive
+    * @param upperKey exclusive
+    */
+   public Iterable<E> rangeLookup( long lowerKey, long upperKey ) {
+      synchronized ( _dump ) {
+         TLongList pos = new TLongArrayList();
+         _overflowIndex._lookupLong.forEachEntry(( key, positions ) -> {
+            if ( key >= lowerKey && key < upperKey )
+               pos.addAll(positions);
+            return true;
+         });
+
+         int keyLength = 8 + 8; // in bytes
+         long lowerIndex = Math.abs(findLongKey(lowerKey, keyLength));
+         long upperIndex = Math.abs(findLongKey(upperKey, keyLength))+1;
+         if ( upperIndex - lowerIndex > 0 ) {
+            for ( long p = lowerIndex * keyLength, maxIndex = Math.min(upperIndex * keyLength, _lookupFileLength); p < maxIndex; p += keyLength ) {
+               LongKeyPosition ip = _longKeyDump.get(p);
+               if ( ip._pos >= 0 && !_dump._deletedPositions.contains(ip._pos) && ip._key >= lowerKey && ip._key < upperKey ) {
+                  pos.add(ip._pos);
+               }
+            }
+         }
+         return new GroupIterable(pos.toArray());
       }
    }
 
@@ -860,13 +888,15 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E> implements NonUniqueInde
 
    /**
     * binary search in the _longKeyDump
+    * @return index of first value with the given key, or -index of the correct insert position for the key if it is missing in the dump
     */
    private long findLongKey( long key, int keyLength ) {
       long low = 0;
       long high = _lookupFileLength / keyLength - 1;
+      long mid = 1;
 
       while ( low <= high ) {
-         long mid = (low + high) >>> 1;
+         mid = (low + high) >>> 1;
          LongKeyPosition midVal = _longKeyDump.get(mid * keyLength);
 
          if ( midVal._key < key ) {
@@ -877,7 +907,7 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E> implements NonUniqueInde
             return findFirst(key, keyLength, low, mid);
          }
       }
-      return -1; // not found
+      return -mid; // not found
    }
 
    private TLongList getObjectKeyPositions( Object key ) {
@@ -944,7 +974,7 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E> implements NonUniqueInde
       Externalizable _key;
 
       @externalize(2)
-      long           _pos;
+      long _pos;
 
 
       public ExternalizableKeyPosition() {}
@@ -1034,7 +1064,7 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E> implements NonUniqueInde
       String _key;
 
       @externalize(2)
-      long   _pos;
+      long _pos;
 
 
       public StringKeyPosition() {}

@@ -2,6 +2,8 @@ package util.dump;
 
 import static org.fest.assertions.Assertions.assertThat;
 
+import java.io.File;
+
 import org.junit.Test;
 
 import util.reflection.FieldAccessor;
@@ -184,6 +186,22 @@ public class InfiniteGroupIndexTest extends AbstractGroupIndexTest {
    }
 
    @Test
+   public void testRangeLookup() throws Exception {
+
+      File dumpFile = new File(_tmpdir, DUMP_FILENAME);
+      try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile)) {
+         for ( int i = _dumpSize * 2; i > 0; i -= 2 ) {
+            dump.add(new Bean(i * 10, i + "----"));
+         }
+
+         InfiniteGroupIndex<Bean> longIndex = new InfiniteGroupIndex<>(dump, "_groupLong");
+         testRangeLookup(dump, longIndex, _dumpSize * 2 / 4, _dumpSize * 2 / 2);
+         testRangeLookup(dump, longIndex, (_dumpSize * 2 / 4) - 1, (_dumpSize * 2 / 2) + 1);
+         testRangeLookup(dump, longIndex, -1, _dumpSize * 4);
+      }
+   }
+
+   @Test
    public void testStringKeyIndex() throws Exception {
       testIndex("_groupString", new InfiniteGroupIndexConfig() {
 
@@ -203,6 +221,22 @@ public class InfiniteGroupIndexTest extends AbstractGroupIndexTest {
             return (id < 0 ? "" : "+") + id;
          }
       });
+   }
+
+   private void testRangeLookup( Dump<Bean> dump, InfiniteGroupIndex<Bean> index, int lowerKey, int upperKey ) {
+      Iterable<Bean> beans = index.rangeLookup(lowerKey, upperKey);
+      int numberFoundByIndex = 0;
+      for ( Bean bean : beans ) {
+         assertThat(bean._groupLong).as("bean id not in expected range").isGreaterThanOrEqualTo(lowerKey);
+         assertThat(bean._groupLong).as("bean id not in expected range").isLessThan(upperKey);
+         numberFoundByIndex++;
+      }
+      int numberInDump = 0;
+      for ( Bean bean : dump ) {
+         if ( bean._groupLong >= lowerKey && bean._groupLong < upperKey )
+            numberInDump++;
+      }
+      assertThat(numberFoundByIndex).as("wrong number of elements found").isEqualTo(numberInDump);
    }
 
 
