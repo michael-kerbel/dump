@@ -54,7 +54,7 @@ public abstract class DumpIndex<E> implements Closeable {
 
       List<IndexMeta> metas = new ArrayList<IndexMeta>();
       for ( File lookupFile : indexFiles ) {
-         File metaFile = new File(dump.getDumpFile().getParentFile(), lookupFile.getName().replaceAll("lookup$", "meta"));
+         File metaFile = new File(dump.getDumpFile().getParentFile(), lookupFile.getName().replaceAll("\\.[^.]*$", ".meta"));
          IndexMeta indexMeta = new IndexMeta();
          checkMeta(dump, metaFile, null, indexMeta);
          if ( indexMeta.isValid() ) {
@@ -149,10 +149,10 @@ public abstract class DumpIndex<E> implements Closeable {
          _lookupFile = lookupFile;
       }
 
-      File metaFile = new File(_dump.getDumpFile().getParentFile(), _lookupFile.getName().replaceAll("lookup$", "meta"));
+      File metaFile = new File(_dump.getDumpFile().getParentFile(), _lookupFile.getName().replaceAll("\\.[^.]*$", ".meta"));
       _metaFile = IOUtils.getCanonicalFileQuietly(metaFile);
 
-      File updatesFile = new File(_dump.getDumpFile().getParentFile(), _lookupFile.getName().replaceAll("lookup$", "updatedPositions"));
+      File updatesFile = new File(_dump.getDumpFile().getParentFile(), _lookupFile.getName().replaceAll("\\.[^.]*$", ".updatedPositions"));
       _updatesFile = IOUtils.getCanonicalFileQuietly(updatesFile);
 
       _fieldAccessor = fieldAccessor;
@@ -289,7 +289,7 @@ public abstract class DumpIndex<E> implements Closeable {
    }
 
    protected void deleteAllIndexFiles() {
-      final String indexPrefix = _lookupFile.getName().replaceAll("lookup$", "");
+      final String indexPrefix = _lookupFile.getName().replaceAll("\\.[^.]*$", "");
       File dir = _dump.getDumpFile().getParentFile();
       File[] indexFiles = dir.listFiles(new FilenameFilter() {
 
@@ -299,7 +299,9 @@ public abstract class DumpIndex<E> implements Closeable {
          }
       });
       for ( File f : indexFiles ) {
-         if ( !f.delete() ) {
+         if(f.isDirectory())
+            IOUtils.deleteDir(f);
+         else if ( !f.delete() ) {
             LOG.error("Failed to delete invalid index file " + f);
          }
       }
