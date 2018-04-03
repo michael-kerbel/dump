@@ -580,6 +580,14 @@ public class UniqueIndex<E> extends DumpIndex<E> {
       }
       delete(oldItem, pos); // remove from memory
 
+      addToIgnoredPositions(pos);
+
+      add(newItem, pos);
+      /* This position is now twice in the index on disk, under different keys.
+       * This is handled during load() using getUpdatesFile() */
+   }
+
+   private void addToIgnoredPositions( long pos ) {
       try {
          // we add this position to the stream of ignored positions used during load()
          getUpdatesOutput().writeLong(pos);
@@ -587,11 +595,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
       catch ( IOException argh ) {
          throw new RuntimeException("Failed to append to updates file " + getUpdatesFile(), argh);
       }
-
-      add(newItem, pos);
-      /* This position is now twice in the index on disk, under different keys.
-       * This is handled during load() using getUpdatesFile() */
-   };
+   }
 
 
    /**
