@@ -352,6 +352,7 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
                }
             }
          }
+         pos.sort();
          return new GroupIterable(pos.toArray());
       }
    }
@@ -486,6 +487,7 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
          }
       }
 
+      positions.sort();
       long[] posArray = positions.toArray();
       putPositionsIntoCache(key, posArray);
       return posArray;
