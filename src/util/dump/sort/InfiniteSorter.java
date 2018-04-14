@@ -3,10 +3,11 @@ package util.dump.sort;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+
+import javax.annotation.Nonnull;
 
 import util.dump.Dump;
 import util.dump.DumpInput;
@@ -16,74 +17,60 @@ import util.dump.stream.ObjectStreamProvider;
 
 
 /**
- *
  * <p>The (almost) infinite sorter is intended to receive a set of Objects of the same
- * type and return them sorted by using its natural <code>Comparable</code> interface or
- * the provided <code>Comparator</code> implementation.</p>
+ * type and return them sorted. This sort is guaranteed to be stable: equal elements will
+ * not be reordered as a result of the sort.</p>
  *
- * <p>This sort is guaranteed to be stable: equal elements will not be reordered as a
- * result of the sort.</p>
- *
- * <p>This implementation basically is not limited by the memory available in your System,
+ * <p>This implementation basically is not limited by the memory available in the JVM,
  * it will swap to the hard disk in order get its job done. This means, that the limit
  * of items to sort is given by the capacity of your hard drive. Of course there is
- * an exception to this rule, your available RAM may prove insufficient only in the case
- * you configure the Sorter to keep to many objects in memory and this way generating
- * an out of memory error.</p>
+ * an exception to this rule, your available RAM may prove insufficient if you configure
+ * the Sorter to keep too many objects in memory.</p>
  *
- * <p>You can limit the memory usage by specifying the maximal number of items and leaf merge
- * streams to by placed in memory. Please notice that this implementation clusters the streams,
- * this means that you may maximally generate <code>(leafstreams * 2) - 1</code> streams in memory.</p>
+ * <p>You can limit the memory usage by specifying the maximal number of items to be placed in memory.
  *
- * <p>The temporal files will be deleted as long they are no longer needed, you may enforce this
- * by additionally configuring the object to tell the Java VM to delete the files on exit,
- * this is behaviour is by default not active, you should use the corresponding setter to <code>true</code>
- * in order to activate this functionality.</p>
+ * <p>The temporary files will be deleted as soon as they are no longer needed, at the latest
+ * during JVM shutdown.</p>
  *
- * <p>By default, a new constructed infinite sorter object will habe the following default configuration:</p>
+ * <p>A newly constructed InfiniteSorter instance will have the following defaults:</p>
  *
  * <ul>
  * <li>Maximal Items in memory: see static constant <code>DEFAULT_MAX_ITEMS_IN_MEMORY</code></li>
- * <li>Maximal leaf streams in memory:  see static constant <code>DEFAULT_MAX_LEAF_STREAMS_IN_MEMORY</code></li>
- * <li>Object comparator: uses default <code>Comparable</code> interface.
- * <li>Temporal Folder: Uses default temporal file provider from Global object
+ * <li>Object comparator: uses natural order from Es <code>Comparable</code> interface implementation.
+ * <li>Temporary Folder: Uses a TempFileProvider with default settings
  * </ul>
  *
  */
+@SuppressWarnings("unused")
 public class InfiniteSorter<E> implements Iterable<E> {
 
    // static internal values
-   private static final String  SERIALIZED_SEGMENT_PREFIX   = "seg.";
-
-   // private members for public configuration
-   private Comparator<E>        comparator                  = null;
-
-   // private temporal files provider
-   private TempFileProvider     tempFileProvider;
-
-   // private control members
-   private int                  totalBufferedElements       = 0;                 // *Total* number of items buffered
-   private List<E>              memoryBuffer                = new ArrayList<E>(); // memory items buffer
-
-   private List<File>           segmentFiles                = null;
-
-   private ObjectStreamProvider objectStreamProvider        = null;
-
+   private static final String SERIALIZED_SEGMENT_PREFIX   = "seg.";
    /**
     * This constant documents the default maximal amount of items to be kept in
     * memory before proceeding with swapping to the specified <code>File</code> folder
-    * object or by default to the temporal OS directory.
+    * object or by default to the temporary OS directory.
     */
-   public static final int      DEFAULT_MAX_ITEMS_IN_MEMORY = 100000;
+   public static final int     DEFAULT_MAX_ITEMS_IN_MEMORY = 100_000;
 
+   // private members for public configuration
+   private Comparator<E>        _comparator            = null;
+   // private temporary files provider
+   private TempFileProvider     _tempFileProvider;
+   // private control members
+   private int                  _totalBufferedElements = 0;                 // *Total* number of items buffered
+   private List<E>              _memoryBuffer          = new ArrayList<>(); // memory items buffer
+   private List<File>           _segmentFiles          = null;
+   private ObjectStreamProvider _objectStreamProvider  = null;
    private int                  _maxItemsInMemory;
+
 
    public InfiniteSorter() {
       init(DEFAULT_MAX_ITEMS_IN_MEMORY, null, TempFileProvider.DEFAULT_PROVIDER);
    }
 
    public InfiniteSorter( File tempDir ) {
-      this(new TempFileProvider(tempDir));
+      init(DEFAULT_MAX_ITEMS_IN_MEMORY, null, new TempFileProvider(tempDir));
    }
 
    public InfiniteSorter( int maxItemsInMemory ) {
@@ -94,50 +81,56 @@ public class InfiniteSorter<E> implements Iterable<E> {
       init(maxItemsInMemory, null, new TempFileProvider(tempDir));
    }
 
+   public InfiniteSorter( int maxItemsInMemory, File tempDir, ObjectStreamProvider objectStreamProvider, Comparator<E> comparator ) {
+      init(maxItemsInMemory, comparator, new TempFileProvider(tempDir));
+      this._objectStreamProvider = objectStreamProvider;
+   }
+
    public InfiniteSorter( int maxItemsInMemory, File tempDir, ObjectStreamProvider objectStreamProvider ) {
       init(maxItemsInMemory, null, new TempFileProvider(tempDir));
-      this.objectStreamProvider = objectStreamProvider;
+      this._objectStreamProvider = objectStreamProvider;
    }
 
-   public InfiniteSorter( int maxItemsInMemory, TempFileProvider tempFileProvider ) {
-      init(maxItemsInMemory, null, tempFileProvider);
-   }
-
-   public InfiniteSorter( TempFileProvider tempFileProvider ) {
-      init(DEFAULT_MAX_ITEMS_IN_MEMORY, null, tempFileProvider);
-   }
-
-   public void add( E objectToWrite ) throws IOException {
+   public void add( E e ) throws IOException {
 
       // writes the new item to memory
-      memoryBuffer.add(objectToWrite);
+      _memoryBuffer.add(e);
 
       // counts the total buffer size
-      totalBufferedElements++;
+      _totalBufferedElements++;
 
-      if ( memoryBuffer.size() == _maxItemsInMemory ) {
+      if ( _memoryBuffer.size() == _maxItemsInMemory ) {
          flush();
       }
    }
 
-   public void addAll( Iterable<E> inputelements ) throws Exception {
-      for ( E e : inputelements ) {
+   public void addAll( Iterable<E> entries ) throws Exception {
+      for ( E e : entries ) {
          add(e);
       }
    }
 
-   /**
-    * Has no effect. Interface compatibility
-    */
-   public void close() {}
+   public void addSortedSegment( Dump<E> dump ) {
+      addSortedSegment(dump.getDumpFile());
+   }
 
+   public void addSortedSegment( File dumpFile ) {
+      if ( _segmentFiles == null ) {
+         _segmentFiles = new ArrayList<>();
+      }
+      if ( dumpFile == null || !dumpFile.isFile() ) {
+         throw new IllegalArgumentException("dumpFile argument not valid: " + dumpFile);
+      }
+      _segmentFiles.add(dumpFile);
+   }
+
+   /** Writes everything from the memory buffer to disk. */
    public void flush() throws IOException {
-
       try {
-         if ( memoryBuffer.size() > 0 ) {
-            Collections.sort(memoryBuffer, comparator);
-            dumpToDump(memoryBuffer);
-            memoryBuffer.clear();
+         if ( _memoryBuffer.size() > 0 ) {
+            _memoryBuffer.sort(_comparator);
+            dumpToDump(_memoryBuffer);
+            _memoryBuffer.clear();
          }
       }
       catch ( Exception e ) {
@@ -146,32 +139,29 @@ public class InfiniteSorter<E> implements Iterable<E> {
          }
          throw new IOException(e.getMessage());
       }
-
    }
 
    /**
     * @return Number of elements in buffer. Please notice that this is not the number of items currently in memory but the total amount of buffered items.
     */
    public int getBufferSize() {
-      return totalBufferedElements;
+      return _totalBufferedElements;
    }
 
    public Comparator getComparator() {
-      return comparator;
+      return _comparator;
    }
 
    public DumpInput<E> getSortedElements() throws Exception {
 
-      DumpInput<E> finalStream = null;
+      DumpInput<E> finalStream;
 
-      if ( segmentFiles == null ) {
+      if ( _segmentFiles == null ) {
          // all buffered items are still in memory, no swapping needed
-         Collections.sort(memoryBuffer, comparator);
-         finalStream = new ListInput<E>(memoryBuffer);
+         _memoryBuffer.sort(_comparator);
+         finalStream = new ListInput<>(_memoryBuffer);
 
       } else {
-         // default case: items are buffered and segments are stored as temporal files
-
          // flush items in memory, if necessary
          flush();
 
@@ -187,10 +177,10 @@ public class InfiniteSorter<E> implements Iterable<E> {
    }
 
    public TempFileProvider getTempFileProvider() {
-      return tempFileProvider;
+      return _tempFileProvider;
    }
 
-   public Iterator<E> iterator() {
+   public @Nonnull Iterator<E> iterator() {
       try {
          return getSortedElements().iterator();
       }
@@ -200,56 +190,42 @@ public class InfiniteSorter<E> implements Iterable<E> {
    }
 
    public void setComparator( Comparator<E> comparator ) {
-      this.comparator = comparator;
+      this._comparator = comparator;
    }
 
    public void setObjectStreamProvider( ObjectStreamProvider objectStreamProvider ) {
-      this.objectStreamProvider = objectStreamProvider;
+      this._objectStreamProvider = objectStreamProvider;
    }
 
    public void setTempFileProvider( TempFileProvider tempFileProvider ) {
-      this.tempFileProvider = tempFileProvider;
+      this._tempFileProvider = tempFileProvider;
    }
 
-   public void addSortedSegment( Dump<E> dump ) {
-      addSortedSegment(dump.getDumpFile());
-   }
-
-   public void addSortedSegment( File dumpFile ) {
-      if ( segmentFiles == null ) {
-         segmentFiles = new ArrayList<File>();
-      }
-      if ( dumpFile == null || !dumpFile.isFile() ) {
-         throw new IllegalArgumentException("dumpFile argument not valid: " + dumpFile);
-      }
-      segmentFiles.add(dumpFile);
-   }
-
-   private List<DumpInput<E>> getSegments() throws IOException {
-      List<DumpInput<E>> streamsbuffer = new ArrayList<DumpInput<E>>();
-
-      for ( File f : segmentFiles ) {
-         streamsbuffer.add(new DumpReader<E>(f, true, objectStreamProvider));
-      }
-      return streamsbuffer;
-   }
-
-   // receives a type safe input containing sorted items and dumps them to a temporal file.
+   // receives a type safe input containing sorted items and dumps them to a temporary file.
    private void dumpToDump( List<E> sortedElements ) throws Exception {
 
-      if ( segmentFiles == null ) {
-         segmentFiles = new ArrayList<File>();
+      if ( _segmentFiles == null ) {
+         _segmentFiles = new ArrayList<>();
       }
 
-      // gets a new temporal file and dumps the sorted data into it
-      File dumpFile = tempFileProvider.getNextTemporalFile(tempFileProvider.getFileSubPrefix() + SERIALIZED_SEGMENT_PREFIX);
-      DumpWriter<E> dump = new DumpWriter<E>(dumpFile, objectStreamProvider);
+      // gets a new temporary file and dumps the sorted data into it
+      File dumpFile = _tempFileProvider.getNextTemporaryFile(_tempFileProvider.getFileSubPrefix() + SERIALIZED_SEGMENT_PREFIX);
+      DumpWriter<E> dump = new DumpWriter<>(dumpFile, _objectStreamProvider);
       for ( E e : sortedElements ) {
          dump.write(e);
       }
       dump.close();
 
-      segmentFiles.add(dumpFile);
+      _segmentFiles.add(dumpFile);
+   }
+
+   private List<DumpInput<E>> getSegments() throws IOException {
+      List<DumpInput<E>> streamsbuffer = new ArrayList<>();
+
+      for ( File f : _segmentFiles ) {
+         streamsbuffer.add(new DumpReader<>(f, true, _objectStreamProvider));
+      }
+      return streamsbuffer;
    }
 
    // init the class
@@ -259,26 +235,26 @@ public class InfiniteSorter<E> implements Iterable<E> {
          throw new IllegalArgumentException("maxItemsInMemory must be positive: " + maxItemsInMemory);
       }
 
-      this.comparator = comparator;
-      this.tempFileProvider = tempFileProvider;
+      this._comparator = comparator;
+      this._tempFileProvider = tempFileProvider;
 
       startFromScratch();
    }
 
    private DumpInput<E> mergeDumps() throws Exception {
       List<DumpInput<E>> streamsbuffer = getSegments();
-      segmentFiles = null;
-      return new SortedInputMerger<E>(streamsbuffer, comparator);
+      _segmentFiles = null;
+      return new SortedInputMerger<>(streamsbuffer, _comparator);
 
    }
 
    // inits the object in order to get started from scratch
    private void startFromScratch() {
 
-      this.totalBufferedElements = 0;
-      this.memoryBuffer = new ArrayList<E>();
+      this._totalBufferedElements = 0;
+      this._memoryBuffer = new ArrayList<>();
 
-      this.segmentFiles = null;
+      this._segmentFiles = null;
    }
 
 }
