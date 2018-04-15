@@ -140,7 +140,7 @@ public interface ExternalizableBean extends Externalizable {
 
    /** Clones this instance by externalizing it to bytes and reading these bytes again.
     *  This leads to a deep copy, but only for all fields annotated by @externalize(.). */
-   default <T extends ExternalizableBean> T cloneDeeply() {
+   default <T extends Externalizable> T cloneDeeply() {
       byte[] bytes = SingleTypeObjectOutputStream.writeSingleInstance(this);
       ExternalizableBean clone = SingleTypeObjectInputStream.readSingleInstance(this.getClass(), bytes);
       return (T)clone;
