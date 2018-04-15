@@ -38,7 +38,7 @@ import util.reflection.Reflection;
  *    SearchIndex<Bean> index = new SearchIndex<>(dump, new FieldFieldAccessor(field), ( doc, bean ) -> doc.add(new TextField("data", bean._data, Store.NO)));
  * </code></p>
  *
- * <p>When searching you need to prefix your query tokens with the field you want to search in. A classic {@link QueryParser} is being used,
+ * <p>When searching you need to prefix your query tokens with the field you want to search in. A classic {@link QueryParser} is being used by default,
  * with the internal "id" field and the AND operator as defaults.</p>
  *
  * <p><code>
@@ -46,6 +46,9 @@ import util.reflection.Reflection;
  * </code></p>
  *
  * <p>For custom Analyzers (default is {@link StandardAnalyzer}) use the {@link IndexWriterConfig} constructor param. You have to use the same config
+ * every time you use the index!</p>
+ *
+ * <p>For a custom QueryParser (default is {@link QueryParser}) use the constructor param. You have to use the same config
  * every time you use the index!</p>
  */
 public class SearchIndex<E> extends DumpIndex<E> {
@@ -60,12 +63,13 @@ public class SearchIndex<E> extends DumpIndex<E> {
 
 
    public SearchIndex( Dump<E> dump, FieldAccessor idFieldAccessor, BiConsumer<Document, E> documentBuilder ) {
-      this(dump, idFieldAccessor, documentBuilder, null);
+      this(dump, idFieldAccessor, documentBuilder, null, null);
    }
 
-   public SearchIndex( Dump<E> dump, FieldAccessor idFieldAccessor, BiConsumer<Document, E> documentBuilder, IndexWriterConfig config ) {
+   public SearchIndex( Dump<E> dump, FieldAccessor idFieldAccessor, BiConsumer<Document, E> documentBuilder, IndexWriterConfig config,
+         QueryParser queryParser ) {
 
-      super(dump, idFieldAccessor, new File(dump.getDumpFile().getParentFile(), dump.getDumpFile().getName()+".search.index"));
+      super(dump, idFieldAccessor, new File(dump.getDumpFile().getParentFile(), dump.getDumpFile().getName() + ".search.index"));
 
       _documentBuilder = documentBuilder;
       _config = config;
@@ -75,8 +79,11 @@ public class SearchIndex<E> extends DumpIndex<E> {
 
       init();
 
-      _parser = new QueryParser("id", _config.getAnalyzer());
-      _parser.setDefaultOperator(Operator.AND);
+      if ( queryParser == null ) {
+         _parser = new QueryParser("id", _config.getAnalyzer());
+         _parser.setDefaultOperator(Operator.AND);
+      } else
+         _parser = queryParser;
 
       openSearcher();
    }
@@ -98,7 +105,7 @@ public class SearchIndex<E> extends DumpIndex<E> {
    @Override
    public boolean contains( int id ) {
       try {
-         return search("" + id, 1).iterator().hasNext();
+         return search("id:" + id, 1).iterator().hasNext();
       }
       catch ( ParseException | IOException e ) {
          throw new RuntimeException("Failed to search", e);
@@ -110,7 +117,7 @@ public class SearchIndex<E> extends DumpIndex<E> {
    @Override
    public boolean contains( long id ) {
       try {
-         return search("" + id, 1).iterator().hasNext();
+         return search("id:" + id, 1).iterator().hasNext();
       }
       catch ( ParseException | IOException e ) {
          throw new RuntimeException("Failed to search", e);
@@ -122,7 +129,7 @@ public class SearchIndex<E> extends DumpIndex<E> {
    @Override
    public boolean contains( Object id ) {
       try {
-         return search(id.toString(), 1).iterator().hasNext();
+         return search("id:"+id.toString(), 1).iterator().hasNext();
       }
       catch ( ParseException | IOException e ) {
          throw new RuntimeException("Failed to search", e);
@@ -267,7 +274,7 @@ public class SearchIndex<E> extends DumpIndex<E> {
    @Override
    void delete( E o, long pos ) {
       try {
-         _writer.deleteDocuments(_parser.parse(getId(o) + " pos:" + pos));
+         _writer.deleteDocuments(_parser.parse("id:"+getId(o) + " pos:" + pos));
          _commitIsPending.set(true);
       }
       catch ( IOException | ParseException e ) {
