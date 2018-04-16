@@ -103,8 +103,12 @@ public class SearchIndex<E> extends DumpIndex<E> {
    @Override
    public void close() throws IOException {
       commit();
-      _writer.close();
-      _searcher.getIndexReader().close();
+
+      if ( _writer != null )
+         _writer.close();
+      if ( _searcher != null && _searcher.getIndexReader() != null )
+         _searcher.getIndexReader().close();
+
       super.close();
    }
 
