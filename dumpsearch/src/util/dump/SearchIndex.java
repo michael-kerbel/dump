@@ -6,6 +6,9 @@ import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -50,6 +53,8 @@ import util.reflection.Reflection;
  *
  * <p>For a custom QueryParser (default is {@link QueryParser}) use the constructor param. You have to use the same config
  * every time you use the index!</p>
+ *
+ * @see NumberQueryParser for a useful QueryParser to use when working with numbers
  */
 public class SearchIndex<E> extends DumpIndex<E> {
 
@@ -62,18 +67,18 @@ public class SearchIndex<E> extends DumpIndex<E> {
    private AtomicBoolean _commitIsPending = new AtomicBoolean(false);
 
 
-   public SearchIndex( Dump<E> dump, FieldAccessor idFieldAccessor, BiConsumer<Document, E> documentBuilder ) {
+   public SearchIndex( @Nonnull Dump<E> dump, @Nonnull FieldAccessor idFieldAccessor, @Nonnull BiConsumer<Document, E> documentBuilder ) {
       this(dump, idFieldAccessor, documentBuilder, null, null);
    }
 
-   public SearchIndex( Dump<E> dump, FieldAccessor idFieldAccessor, BiConsumer<Document, E> documentBuilder, IndexWriterConfig config,
-         QueryParser queryParser ) {
+   public SearchIndex( @Nonnull Dump<E> dump, @Nonnull FieldAccessor idFieldAccessor, @Nonnull BiConsumer<Document, E> documentBuilder,
+         @Nullable IndexWriterConfig config, @Nullable QueryParser queryParser ) {
 
       super(dump, idFieldAccessor, new File(dump.getDumpFile().getParentFile(), dump.getDumpFile().getName() + ".search.index"));
 
       _documentBuilder = documentBuilder;
       _config = config;
-      if ( _config == null ) {
+      if ( config == null ) {
          _config = new IndexWriterConfig(new StandardAnalyzer());
       }
 
@@ -82,13 +87,16 @@ public class SearchIndex<E> extends DumpIndex<E> {
       if ( queryParser == null ) {
          _parser = new QueryParser("id", _config.getAnalyzer());
          _parser.setDefaultOperator(Operator.AND);
-      } else
+      } else {
          _parser = queryParser;
+         if ( config == null )
+            _config = new IndexWriterConfig(_parser.getAnalyzer());
+      }
 
       openSearcher();
    }
 
-   public SearchIndex( Dump<E> dump, String idFieldName, BiConsumer<Document, E> documentBuilder ) throws NoSuchFieldException {
+   public SearchIndex( @Nonnull Dump<E> dump, @Nonnull String idFieldName, @Nonnull BiConsumer<Document, E> documentBuilder ) throws NoSuchFieldException {
       this(dump, new FieldFieldAccessor(Reflection.getField(dump._beanClass, idFieldName)), documentBuilder);
    }
 
@@ -129,7 +137,7 @@ public class SearchIndex<E> extends DumpIndex<E> {
    @Override
    public boolean contains( Object id ) {
       try {
-         return search("id:"+id.toString(), 1).iterator().hasNext();
+         return search("id:" + id.toString(), 1).iterator().hasNext();
       }
       catch ( ParseException | IOException e ) {
          throw new RuntimeException("Failed to search", e);
@@ -274,7 +282,7 @@ public class SearchIndex<E> extends DumpIndex<E> {
    @Override
    void delete( E o, long pos ) {
       try {
-         _writer.deleteDocuments(_parser.parse("id:"+getId(o) + " pos:" + pos));
+         _writer.deleteDocuments(_parser.parse("id:" + getId(o) + " pos:" + pos));
          _commitIsPending.set(true);
       }
       catch ( IOException | ParseException e ) {
