@@ -32,7 +32,7 @@ public class NumberQueryParserTest {
             doc.add(new LongPoint("longField", b._longField));
             doc.add(new DoublePoint("doubleField", b._doubleField));
             doc.add(new TextField("text", b._text, Field.Store.NO));
-         } , null, new NumberQueryParser("id", new StandardAnalyzer(), new String[] { "longField" }, new String[] { "doubleField" }));
+         } , null, new NumberQueryParser("id", new StandardAnalyzer(), new String[] { "longField" }, new String[] { "doubleField" }), null);
 
          Bean firstBean = new Bean(1, "first text", 1L, 0.1);
          dump.add(firstBean);

@@ -76,16 +76,16 @@ public class SearchIndex<E> extends DumpIndex<E> {
    private AtomicBoolean _commitIsPending = new AtomicBoolean(false);
 
    private DirectoryTaxonomyWriter _taxoWriter;
-   private FacetsConfig            _facetsConfig = new FacetsConfig();
+   private FacetsConfig            _facetsConfig;
    private DirectoryTaxonomyReader _taxoReader;
 
 
    public SearchIndex( @Nonnull Dump<E> dump, @Nonnull FieldAccessor idFieldAccessor, @Nonnull BiConsumer<Document, E> documentBuilder ) {
-      this(dump, idFieldAccessor, documentBuilder, null, null);
+      this(dump, idFieldAccessor, documentBuilder, null, null, null);
    }
 
    public SearchIndex( @Nonnull Dump<E> dump, @Nonnull FieldAccessor idFieldAccessor, @Nonnull BiConsumer<Document, E> documentBuilder,
-         @Nullable IndexWriterConfig config, @Nullable QueryParser queryParser ) {
+         @Nullable IndexWriterConfig config, @Nullable QueryParser queryParser, @Nullable FacetsConfig facetsConfig ) {
 
       super(dump, idFieldAccessor, new File(dump.getDumpFile().getParentFile(), dump.getDumpFile().getName() + ".search.index"));
 
@@ -94,6 +94,9 @@ public class SearchIndex<E> extends DumpIndex<E> {
       if ( config == null ) {
          _config = new IndexWriterConfig(new StandardAnalyzer());
       }
+      _facetsConfig = facetsConfig;
+      if ( facetsConfig == null )
+         _facetsConfig = new FacetsConfig();
 
       init();
 
