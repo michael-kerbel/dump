@@ -299,7 +299,7 @@ public abstract class DumpIndex<E> implements Closeable {
          }
       });
       for ( File f : indexFiles ) {
-         if(f.isDirectory())
+         if ( f.isDirectory() )
             IOUtils.deleteDir(f);
          else if ( !f.delete() ) {
             LOG.error("Failed to delete invalid index file " + f);
@@ -372,7 +372,10 @@ public abstract class DumpIndex<E> implements Closeable {
       initLookupMap();
 
       if ( !_dump.getDumpFile().exists() || _dump.getDumpFile().length() == 0 ) {
-         _lookupFile.delete();
+         if ( _lookupFile.isDirectory() )
+            IOUtils.deleteDir(_lookupFile);
+         else
+            _lookupFile.delete();
       }
 
       // make sure there are no other threads/processes that open/create the index
