@@ -3,6 +3,7 @@ package util.dump;
 import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
@@ -13,6 +14,14 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.facet.FacetResult;
+import org.apache.lucene.facet.Facets;
+import org.apache.lucene.facet.FacetsCollector;
+import org.apache.lucene.facet.FacetsConfig;
+import org.apache.lucene.facet.taxonomy.FastTaxonomyFacetCounts;
+import org.apache.lucene.facet.taxonomy.TaxonomyReader;
+import org.apache.lucene.facet.taxonomy.directory.DirectoryTaxonomyReader;
+import org.apache.lucene.facet.taxonomy.directory.DirectoryTaxonomyWriter;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -66,6 +75,10 @@ public class SearchIndex<E> extends DumpIndex<E> {
 
    private AtomicBoolean _commitIsPending = new AtomicBoolean(false);
 
+   private DirectoryTaxonomyWriter _taxoWriter;
+   private FacetsConfig            _facetsConfig = new FacetsConfig();
+   private DirectoryTaxonomyReader _taxoReader;
+
 
    public SearchIndex( @Nonnull Dump<E> dump, @Nonnull FieldAccessor idFieldAccessor, @Nonnull BiConsumer<Document, E> documentBuilder ) {
       this(dump, idFieldAccessor, documentBuilder, null, null);
@@ -106,6 +119,8 @@ public class SearchIndex<E> extends DumpIndex<E> {
 
       if ( _writer != null )
          _writer.close();
+      if ( _taxoWriter != null )
+         _taxoWriter.close();
       if ( _searcher != null && _searcher.getIndexReader() != null )
          _searcher.getIndexReader().close();
 
@@ -156,6 +171,15 @@ public class SearchIndex<E> extends DumpIndex<E> {
       return getSearcher().count(_parser.parse(query));
    }
 
+   public List<FacetResult> facetSearch( String query ) throws ParseException, IOException {
+      FacetsCollector fc = new FacetsCollector();
+
+      FacetsCollector.search(getSearcher(), _parser.parse(query), Integer.MAX_VALUE, fc);
+
+      Facets facets = new FastTaxonomyFacetCounts(getTaxonomyReader(), _facetsConfig, fc);
+      return facets.getAllDims(Integer.MAX_VALUE);
+   }
+
    /**
     * Unimplemented!
     */
@@ -172,6 +196,26 @@ public class SearchIndex<E> extends DumpIndex<E> {
       catch ( IOException e ) {
          throw new RuntimeException("Failed to query number of docs", e);
       }
+   }
+
+   public IndexSearcher getSearcher() throws IOException {
+      commit();
+      DirectoryReader reader = DirectoryReader.openIfChanged((DirectoryReader)_searcher.getIndexReader(), _writer, false);
+      if ( reader != null ) {
+         _searcher = new IndexSearcher(reader);
+      }
+      return _searcher;
+   }
+
+   public TaxonomyReader getTaxonomyReader() throws IOException {
+      commit();
+      DirectoryTaxonomyReader newTaxoReader = TaxonomyReader.openIfChanged(_taxoReader);
+      if ( newTaxoReader != null ) {
+         if ( _taxoReader != null )
+            _taxoReader.close();
+         _taxoReader = newTaxoReader;
+      }
+      return _taxoReader;
    }
 
    /**
@@ -218,6 +262,7 @@ public class SearchIndex<E> extends DumpIndex<E> {
    protected void commit() throws IOException {
       if ( _commitIsPending.get() ) {
          _writer.commit();
+         _taxoWriter.commit();
          _commitIsPending.set(false);
       }
    }
@@ -225,15 +270,6 @@ public class SearchIndex<E> extends DumpIndex<E> {
    @Override
    protected String getIndexType() {
       return SearchIndex.class.getSimpleName();
-   }
-
-   protected IndexSearcher getSearcher() throws IOException {
-      commit();
-      DirectoryReader reader = DirectoryReader.openIfChanged((DirectoryReader)_searcher.getIndexReader(), _writer, false);
-      if ( reader != null ) {
-         _searcher = new IndexSearcher(reader);
-      }
-      return _searcher;
    }
 
    @Override
@@ -244,10 +280,15 @@ public class SearchIndex<E> extends DumpIndex<E> {
    @Override
    protected void initLookupOutputStream() {
       try {
+         Directory facetDir = FSDirectory.open(new File(getLookupFile().getAbsolutePath() + "-facets").toPath());
+         _taxoWriter = new DirectoryTaxonomyWriter(facetDir);
+         _taxoWriter.commit();
+
          Directory dir = FSDirectory.open(getLookupFile().toPath());
          _config.setOpenMode(OpenMode.CREATE_OR_APPEND);
          _writer = new IndexWriter(dir, _config);
          _writer.commit();
+
       }
       catch ( IOException e ) {
          throw new RuntimeException("Failed to initialize dump index with lookup file " + getLookupFile(), e);
@@ -266,6 +307,14 @@ public class SearchIndex<E> extends DumpIndex<E> {
       catch ( IOException e ) {
          throw new RuntimeException("Failed to initialize dump index with lookup file " + getLookupFile(), e);
       }
+
+      try {
+         Directory facetDir = FSDirectory.open(new File(getLookupFile().getAbsolutePath() + "-facets").toPath());
+         _taxoReader = new DirectoryTaxonomyReader(facetDir);
+      }
+      catch ( IOException e ) {
+         throw new RuntimeException("Failed to initialize dump facet index with lookup file " + getLookupFile() + "-facets", e);
+      }
    }
 
    @Override
@@ -275,7 +324,7 @@ public class SearchIndex<E> extends DumpIndex<E> {
          doc.add(new StringField("id", getId(o), Field.Store.YES));
          doc.add(new StringField("pos", "" + pos, Field.Store.YES));
          _documentBuilder.accept(doc, o);
-         _writer.addDocument(doc);
+         _writer.addDocument(_facetsConfig.build(_taxoWriter, doc));
          _commitIsPending.set(true);
       }
       catch ( IOException e ) {

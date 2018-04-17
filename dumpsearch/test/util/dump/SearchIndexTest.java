@@ -5,12 +5,15 @@ import static org.fest.assertions.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.facet.FacetField;
+import org.apache.lucene.facet.FacetResult;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -110,6 +113,35 @@ public class SearchIndexTest {
          List<Bean> beans = search(index, "data:row");
          assertThat(beans.isEmpty()).as("query did not find items").isFalse();
          assertThat(beans.size()).as("query did not find all items").isEqualTo(2);
+      }
+   }
+
+   @Test
+   public void testFaceting() throws Exception {
+      File dumpFile = new File(_tmpdir, DUMP_FILENAME);
+
+      try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile)) {
+         Field field = Reflection.getField(Bean.class, "_idLong");
+         SearchIndex<Bean> index = new SearchIndex<>(dump, new FieldFieldAccessor(field), ( doc, o ) -> doc.add(new FacetField("facetField", o._data)));
+
+         for ( int i = 0; i < 100; i++ ) {
+            dump.add(new Bean(i, "" + i % 10));
+         }
+
+         List<FacetResult> facetResults = index.facetSearch("id:[0 TO 999]");
+         assertThat(facetResults.size()).isEqualTo(1);
+         FacetResult facetResult = facetResults.get(0);
+         assertThat(facetResult.value).isEqualTo(100);
+         assertThat(facetResult.childCount).isEqualTo(10);
+         Arrays.stream(facetResult.labelValues).forEach(lav -> assertThat(lav.value).isEqualTo(10));
+
+         for ( int i = 100; i < 110; i++ ) {
+            dump.add(new Bean(i, "" + i % 10));
+         }
+         facetResults =index.facetSearch("id:[0 TO 999]");
+         facetResult = facetResults.get(0);
+         Arrays.stream(facetResult.labelValues).forEach(lav -> assertThat(lav.value).isEqualTo(11));
+
       }
    }
 

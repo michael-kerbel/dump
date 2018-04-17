@@ -9,7 +9,7 @@
    <parent>
       <groupId>mkr</groupId>
       <artifactId>util-pom</artifactId>
-      <version>1.20180415.1</version>
+      <version>1.20180416.1</version>
    </parent>
 
    <dependencies>
@@ -20,27 +20,27 @@
       <dependency>
          <groupId>org.apache.lucene</groupId>
          <artifactId>lucene-core</artifactId>
-         <version>7.2.1</version>
+         <version>7.3.0</version>
       </dependency>
       <dependency>
          <groupId>org.apache.lucene</groupId>
          <artifactId>lucene-queryparser</artifactId>
-         <version>7.2.1</version>
+         <version>7.3.0</version>
       </dependency>
       <dependency>
          <groupId>org.apache.lucene</groupId>
          <artifactId>lucene-analyzers-common</artifactId>
-         <version>7.2.1</version>
+         <version>7.3.0</version>
       </dependency>
       <dependency>
          <groupId>org.apache.lucene</groupId>
          <artifactId>lucene-queries</artifactId>
-         <version>7.2.1</version>
+         <version>7.3.0</version>
       </dependency>
       <dependency>
          <groupId>org.apache.lucene</groupId>
-         <artifactId>lucene-queries</artifactId>
-         <version>7.2.1</version>
+         <artifactId>lucene-facet</artifactId>
+         <version>7.3.0</version>
       </dependency>
 
    </dependencies>
