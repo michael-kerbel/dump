@@ -61,8 +61,7 @@ public class SearchIndexTest {
 
       try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile)) {
 
-         Field field = Reflection.getField(Bean.class, "_idLong");
-         SearchIndex<Bean> index = new SearchIndex<>(dump, new FieldFieldAccessor(field), ( doc, o ) -> doc.add(new TextField("data", o._data, Store.NO)));
+         SearchIndex<Bean> index = SearchIndex.with(dump, "_idLong", ( doc, o ) -> doc.add(new TextField("data", o._data, Store.NO))).build();
 
          Bean firstBean = new Bean(1, "first  row");
          dump.add(firstBean);
@@ -107,8 +106,7 @@ public class SearchIndexTest {
 
       try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile)) {
 
-         Field field = Reflection.getField(Bean.class, "_idLong");
-         SearchIndex<Bean> index = new SearchIndex<>(dump, new FieldFieldAccessor(field), ( doc, o ) -> {});
+         SearchIndex<Bean> index = SearchIndex.with(dump, "_idLong", ( doc, o ) -> doc.add(new TextField("data", o._data, Store.NO))).build();
 
          List<Bean> beans = search(index, "data:row");
          assertThat(beans.isEmpty()).as("query did not find items").isFalse();
@@ -121,8 +119,7 @@ public class SearchIndexTest {
       File dumpFile = new File(_tmpdir, DUMP_FILENAME);
 
       try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile)) {
-         Field field = Reflection.getField(Bean.class, "_idLong");
-         SearchIndex<Bean> index = new SearchIndex<>(dump, new FieldFieldAccessor(field), ( doc, o ) -> doc.add(new FacetField("facetField", o._data)));
+         SearchIndex<Bean> index = SearchIndex.with(dump, "_idLong", ( doc, o ) -> doc.add(new FacetField("facetField", o._data))).build();
 
          for ( int i = 0; i < 100; i++ ) {
             dump.add(new Bean(i, "" + i % 10));

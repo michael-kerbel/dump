@@ -2,14 +2,15 @@ package util.dump;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -29,7 +30,6 @@ import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
-import org.apache.lucene.queryparser.classic.QueryParser.Operator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.store.Directory;
@@ -67,53 +67,41 @@ import util.reflection.Reflection;
  */
 public class SearchIndex<E> extends DumpIndex<E> {
 
+   public static <T> SearchIndexBuilder<T> with( @Nonnull Dump<T> dump, @Nonnull String idFieldName, @Nonnull BiConsumer<Document, T> documentBuilder )
+         throws NoSuchFieldException {
+      return new SearchIndexBuilder<>(dump, new FieldFieldAccessor(Reflection.getField(dump._beanClass, idFieldName)), documentBuilder);
+   }
+
+   public static <T> SearchIndexBuilder<T> with( @Nonnull Dump<T> dump, @Nonnull FieldAccessor idFieldAccessor,
+         @Nonnull BiConsumer<Document, T> documentBuilder ) {
+      return new SearchIndexBuilder<>(dump, idFieldAccessor, documentBuilder);
+   }
+
+
    private IndexWriter             _writer;
    private QueryParser             _parser;
    private IndexSearcher           _searcher;
    private BiConsumer<Document, E> _documentBuilder;
    private IndexWriterConfig       _config;
-
-   private AtomicBoolean _commitIsPending = new AtomicBoolean(false);
-
+   private AtomicBoolean           _commitIsPending = new AtomicBoolean(false);
    private DirectoryTaxonomyWriter _taxoWriter;
    private FacetsConfig            _facetsConfig;
    private DirectoryTaxonomyReader _taxoReader;
 
 
-   public SearchIndex( @Nonnull Dump<E> dump, @Nonnull FieldAccessor idFieldAccessor, @Nonnull BiConsumer<Document, E> documentBuilder ) {
-      this(dump, idFieldAccessor, documentBuilder, null, null, null);
-   }
-
-   public SearchIndex( @Nonnull Dump<E> dump, @Nonnull FieldAccessor idFieldAccessor, @Nonnull BiConsumer<Document, E> documentBuilder,
-         @Nullable IndexWriterConfig config, @Nullable QueryParser queryParser, @Nullable FacetsConfig facetsConfig ) {
+   private SearchIndex( @Nonnull Dump<E> dump, @Nonnull FieldAccessor idFieldAccessor, @Nonnull BiConsumer<Document, E> documentBuilder,
+         @Nonnull IndexWriterConfig config, @Nonnull QueryParser queryParser, @Nonnull FacetsConfig facetsConfig ) {
 
       super(dump, idFieldAccessor, new File(dump.getDumpFile().getParentFile(), dump.getDumpFile().getName() + ".search.index"));
 
       _documentBuilder = documentBuilder;
       _config = config;
-      if ( config == null ) {
-         _config = new IndexWriterConfig(new StandardAnalyzer());
-      }
       _facetsConfig = facetsConfig;
-      if ( facetsConfig == null )
-         _facetsConfig = new FacetsConfig();
-
       init();
 
-      if ( queryParser == null ) {
-         _parser = new QueryParser("id", _config.getAnalyzer());
-         _parser.setDefaultOperator(Operator.AND);
-      } else {
-         _parser = queryParser;
-         if ( config == null )
-            _config = new IndexWriterConfig(_parser.getAnalyzer());
-      }
+      _parser = queryParser;
 
       openSearcher();
-   }
-
-   public SearchIndex( @Nonnull Dump<E> dump, @Nonnull String idFieldName, @Nonnull BiConsumer<Document, E> documentBuilder ) throws NoSuchFieldException {
-      this(dump, new FieldFieldAccessor(Reflection.getField(dump._beanClass, idFieldName)), documentBuilder);
    }
 
    @Override
@@ -363,5 +351,88 @@ public class SearchIndex<E> extends DumpIndex<E> {
 
    private String getId( E o ) {
       return (_fieldIsInt ? getIntKey(o) : (_fieldIsLong ? getLongKey(o) : getObjectKey(o))).toString();
+   }
+
+
+   public static class SearchIndexBuilder<E> {
+
+      private Dump<E>                 _dump;
+      private BiConsumer<Document, E> _documentBuilder;
+      FieldAccessor                   _idFieldAccessor;
+      private Analyzer                _analyzer;
+      private QueryParser             _queryParser;
+      private FacetsConfig            _facetsConfig;
+      private IndexWriterConfig       _indexWriterConfig;
+      private String[]                _longFieldNames;
+      private String[]                _doubleFieldNames;
+      private String[]                _multiValuedFacetFields;
+
+
+      public SearchIndexBuilder( Dump<E> dump, FieldAccessor idFieldAccessor, BiConsumer<Document, E> documentBuilder ) {
+         _dump = dump;
+         _documentBuilder = documentBuilder;
+         _idFieldAccessor = idFieldAccessor;
+      }
+
+      @SuppressWarnings("unchecked")
+      public <T> SearchIndex<T> build() {
+         if ( _facetsConfig == null ) {
+            _facetsConfig = new FacetsConfig();
+         }
+         if ( _multiValuedFacetFields != null ) {
+            Arrays.stream(_multiValuedFacetFields).forEach(f -> _facetsConfig.setMultiValued(f, true));
+         }
+         if ( _analyzer == null ) {
+            _analyzer = new StandardAnalyzer();
+         }
+
+         if ( _queryParser == null ) {
+            _queryParser = new NumberQueryParser("id", _analyzer, _longFieldNames == null ? new String[0] : _longFieldNames,
+               _doubleFieldNames == null ? new String[0] : _doubleFieldNames);
+         } else if ( _longFieldNames != null || _doubleFieldNames != null ) {
+            throw new RuntimeException("You may not set both a custom query parser and longFieldNames or doubleFieldNames");
+         }
+
+         if ( _indexWriterConfig == null )
+            _indexWriterConfig = new IndexWriterConfig(_analyzer);
+
+         return new SearchIndex(_dump, _idFieldAccessor, _documentBuilder, _indexWriterConfig, _queryParser, _facetsConfig);
+      }
+
+      public SearchIndexBuilder<E> withAnalyzer( Analyzer analyzer ) {
+         _analyzer = analyzer;
+         return this;
+      }
+
+      public SearchIndexBuilder<E> withDoubleFields( String... doubleFieldNames ) {
+         _doubleFieldNames = doubleFieldNames;
+         return this;
+      }
+
+      public SearchIndexBuilder<E> withFacetsConfig( FacetsConfig facetsConfig ) {
+         _facetsConfig = facetsConfig;
+         return this;
+      }
+
+      public SearchIndexBuilder<E> withIndexWriterConfig( IndexWriterConfig indexWriterConfig ) {
+         _indexWriterConfig = indexWriterConfig;
+         return this;
+      }
+
+      public SearchIndexBuilder<E> withLongFields( String... longFieldNames ) {
+         _longFieldNames = longFieldNames;
+         return this;
+      }
+
+      public SearchIndexBuilder<E> withMultiValuedFacetFields( String... multiValuedFacetFields ) {
+         _multiValuedFacetFields = multiValuedFacetFields;
+         return this;
+      }
+
+      public SearchIndexBuilder<E> withQueryParser( QueryParser queryParser ) {
+         _queryParser = queryParser;
+         return this;
+      }
+
    }
 }

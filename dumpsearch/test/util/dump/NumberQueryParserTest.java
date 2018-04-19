@@ -28,11 +28,11 @@ public class NumberQueryParserTest {
       TempFileProvider tempFileProvider = new TempFileProvider(new File("target"));
       try (Dump<Bean> dump = new Dump<>(Bean.class, tempFileProvider.getNextTemporaryFile())) {
 
-         SearchIndex<Bean> index = new SearchIndex<>(dump, new FieldFieldAccessor(Reflection.getField(Bean.class, "_id")), ( doc, b ) -> {
+         SearchIndex<Bean> index = SearchIndex.with(dump, "_id", ( doc, b ) -> {
             doc.add(new LongPoint("longField", b._longField));
             doc.add(new DoublePoint("doubleField", b._doubleField));
             doc.add(new TextField("text", b._text, Field.Store.NO));
-         } , null, new NumberQueryParser("id", new StandardAnalyzer(), new String[] { "longField" }, new String[] { "doubleField" }), null);
+         }).withLongFields("longField").withDoubleFields("doubleField").build();
 
          Bean firstBean = new Bean(1, "first text", 1L, 0.1);
          dump.add(firstBean);
