@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -54,8 +55,7 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
 
    /* TODO synchronization */
 
-   private static final int      DEFAULT_MAX_LOOKUP_SIZE_IN_MEMORY = 25000;
-   protected static final byte[] EMPTY_BYTES                       = new byte[0];
+   private static final int DEFAULT_MAX_LOOKUP_SIZE_IN_MEMORY = 25000;
 
 
    private static File getOverflowIndexFile( Dump<?> dump, FieldAccessor fieldAccessor ) {
@@ -271,7 +271,7 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
          }
 
          int before = 0;
-         Set<Object> set = new HashSet<Object>();
+         Set<Object> set = new HashSet<>();
          for ( IntKeyPosition keyPos : _intKeyDump ) {
 
             int hashCode = keyPos._key;
@@ -343,7 +343,7 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
 
          int keyLength = 8 + 8; // in bytes
          long lowerIndex = Math.abs(findLongKey(lowerKey, keyLength));
-         long upperIndex = Math.abs(findLongKey(upperKey, keyLength))+1;
+         long upperIndex = Math.abs(findLongKey(upperKey, keyLength)) + 1;
          if ( upperIndex - lowerIndex > 0 ) {
             for ( long p = lowerIndex * keyLength, maxIndex = Math.min(upperIndex * keyLength, _lookupFileLength); p < maxIndex; p += keyLength ) {
                LongKeyPosition ip = _longKeyDump.get(p);
@@ -505,8 +505,8 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
 
       try {
          if ( _fieldIsInt ) {
-            final InfiniteSorter<IntKeyPosition> sorter = new InfiniteSorter<IntKeyPosition>(_maxLookupSizeInMemory, _dump.getDumpFile().getParentFile(),
-               new SingleTypeObjectStreamProvider<Externalizable>(IntKeyPosition.class));
+            final InfiniteSorter<IntKeyPosition> sorter = new InfiniteSorter<IntKeyPosition>(_maxLookupSizeInMemory, -1, _dump.getDumpFile().getParentFile(),
+               new SingleTypeObjectStreamProvider<>(IntKeyPosition.class), Comparator.naturalOrder());
             try (DumpIterator<E> iterator = _dump.iterator()) {
                while ( iterator.hasNext() ) {
                   sorter.add(new IntKeyPosition(getIntKey(iterator.next()), iterator.getPosition()));
@@ -515,13 +515,13 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
             catch ( IOException argh ) {
                throw new RuntimeException("Failed to sort InfiniteGroupIndex on disk", argh);
             }
-            _intKeyDump = new Dump<IntKeyPosition>(IntKeyPosition.class, getLookupFile());
+            _intKeyDump = new Dump<>(IntKeyPosition.class, getLookupFile());
             _intKeyDump.addAll(sorter);
             _intKeyDump.flush();
             _lookupFileLength = getLookupFile().length();
          } else if ( _fieldIsLong ) {
-            final InfiniteSorter<LongKeyPosition> sorter = new InfiniteSorter<LongKeyPosition>(_maxLookupSizeInMemory, _dump.getDumpFile().getParentFile(),
-               new SingleTypeObjectStreamProvider<Externalizable>(LongKeyPosition.class));
+            final InfiniteSorter<LongKeyPosition> sorter = new InfiniteSorter<LongKeyPosition>(_maxLookupSizeInMemory, -1, _dump.getDumpFile().getParentFile(),
+               new SingleTypeObjectStreamProvider<>(LongKeyPosition.class), Comparator.naturalOrder());
             try (DumpIterator<E> iterator = _dump.iterator()) {
                while ( iterator.hasNext() ) {
                   sorter.add(new LongKeyPosition(getLongKey(iterator.next()), iterator.getPosition()));
@@ -530,18 +530,18 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
             catch ( IOException argh ) {
                throw new RuntimeException("Failed to sort InfiniteGroupIndex on disk", argh);
             }
-            _longKeyDump = new Dump<LongKeyPosition>(LongKeyPosition.class, getLookupFile());
+            _longKeyDump = new Dump<>(LongKeyPosition.class, getLookupFile());
             _longKeyDump.addAll(sorter);
             _longKeyDump.flush();
             _lookupFileLength = getLookupFile().length();
          } else if ( _fieldIsString || _fieldIsExternalizable ) {
             if ( _fieldIsExternalizable ) {
-               _externalizableKeyDump = new Dump<ExternalizableKeyPosition>(ExternalizableKeyPosition.class, _objectKeyDumpFile);
-            } else if ( _fieldIsString ) {
-               _stringKeyDump = new Dump<StringKeyPosition>(StringKeyPosition.class, _objectKeyDumpFile);
+               _externalizableKeyDump = new Dump<>(ExternalizableKeyPosition.class, _objectKeyDumpFile);
+            } else {
+               _stringKeyDump = new Dump<>(StringKeyPosition.class, _objectKeyDumpFile);
             }
-            final InfiniteSorter<IntKeyPosition> sorter = new InfiniteSorter<IntKeyPosition>(_maxLookupSizeInMemory, _dump.getDumpFile().getParentFile(),
-               new SingleTypeObjectStreamProvider<Externalizable>(IntKeyPosition.class));
+            final InfiniteSorter<IntKeyPosition> sorter = new InfiniteSorter<IntKeyPosition>(_maxLookupSizeInMemory, -1, _dump.getDumpFile().getParentFile(),
+               new SingleTypeObjectStreamProvider<>(IntKeyPosition.class), Comparator.naturalOrder());
             try (DumpIterator<E> iterator = _dump.iterator()) {
                while ( iterator.hasNext() ) {
                   long keyPos = -1;
@@ -559,7 +559,7 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
             catch ( IOException argh ) {
                throw new RuntimeException("Failed to sort InfiniteGroupIndex on disk", argh);
             }
-            _intKeyDump = new Dump<IntKeyPosition>(IntKeyPosition.class, getLookupFile());
+            _intKeyDump = new Dump<>(IntKeyPosition.class, getLookupFile());
             _intKeyDump.addAll(sorter);
             _intKeyDump.flush();
             _lookupFileLength = getLookupFile().length();
@@ -588,19 +588,19 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
    protected void load() {
       // we load nothing, since this is a disk-based index.
       if ( _fieldIsInt ) {
-         _intKeyDump = new Dump<IntKeyPosition>(IntKeyPosition.class, getLookupFile());
+         _intKeyDump = new Dump<>(IntKeyPosition.class, getLookupFile());
       } else if ( _fieldIsLong ) {
-         _longKeyDump = new Dump<LongKeyPosition>(LongKeyPosition.class, getLookupFile());
+         _longKeyDump = new Dump<>(LongKeyPosition.class, getLookupFile());
       } else if ( _fieldIsExternalizable || _fieldIsString ) {
-         _intKeyDump = new Dump<IntKeyPosition>(IntKeyPosition.class, getLookupFile());
+         _intKeyDump = new Dump<>(IntKeyPosition.class, getLookupFile());
       } else {
          throw new UnsupportedOperationException("unsupported key type: " + _fieldAccessor.getType());
       }
 
       if ( _fieldIsExternalizable ) {
-         _externalizableKeyDump = new Dump<ExternalizableKeyPosition>(ExternalizableKeyPosition.class, _objectKeyDumpFile);
+         _externalizableKeyDump = new Dump<>(ExternalizableKeyPosition.class, _objectKeyDumpFile);
       } else if ( _fieldIsString ) {
-         _stringKeyDump = new Dump<StringKeyPosition>(StringKeyPosition.class, _objectKeyDumpFile);
+         _stringKeyDump = new Dump<>(StringKeyPosition.class, _objectKeyDumpFile);
       }
 
       _lookupFileLength = getLookupFile().length();
@@ -610,8 +610,8 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
       try {
          String tmpLookupFileName = getLookupFile().getName() + ".tmp";
          if ( _fieldIsInt ) {
-            final InfiniteSorter<IntKeyPosition> sorter = new InfiniteSorter<IntKeyPosition>(_maxLookupSizeInMemory, _dump.getDumpFile().getParentFile(),
-               new SingleTypeObjectStreamProvider<Externalizable>(IntKeyPosition.class));
+            final InfiniteSorter<IntKeyPosition> sorter = new InfiniteSorter<IntKeyPosition>(_maxLookupSizeInMemory, -1, _dump.getDumpFile().getParentFile(),
+               new SingleTypeObjectStreamProvider<>(IntKeyPosition.class), Comparator.naturalOrder());
             // the existing dump is already sorted, so this is an optimization to avoid re-externalization and re-sorting of the existing objects
             sorter.addSortedSegment(_intKeyDump);
 
@@ -634,14 +634,14 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
                }
             });
             File tmpLookupFile = new File(getLookupFile().getParent(), tmpLookupFileName);
-            Dump<IntKeyPosition> intKeyDump = new Dump<IntKeyPosition>(IntKeyPosition.class, tmpLookupFile);
+            Dump<IntKeyPosition> intKeyDump = new Dump<>(IntKeyPosition.class, tmpLookupFile);
             intKeyDump.addAll(sorter);
             intKeyDump.close();
             renameTmpLookupFile(tmpLookupFileName, tmpLookupFile);
-            _intKeyDump = new Dump<IntKeyPosition>(IntKeyPosition.class, getLookupFile());
+            _intKeyDump = new Dump<>(IntKeyPosition.class, getLookupFile());
          } else if ( _fieldIsLong ) {
-            final InfiniteSorter<LongKeyPosition> sorter = new InfiniteSorter<LongKeyPosition>(_maxLookupSizeInMemory, _dump.getDumpFile().getParentFile(),
-               new SingleTypeObjectStreamProvider<Externalizable>(LongKeyPosition.class));
+            final InfiniteSorter<LongKeyPosition> sorter = new InfiniteSorter<LongKeyPosition>(_maxLookupSizeInMemory, -1, _dump.getDumpFile().getParentFile(),
+               new SingleTypeObjectStreamProvider<>(LongKeyPosition.class), Comparator.naturalOrder());
             // the existing dump is already sorted, so this is an optimisation to avoid re-externalization and re-sorting of the existing objects
             sorter.addSortedSegment(_longKeyDump);
 
@@ -665,14 +665,14 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
             });
 
             File tmpLookupFile = new File(getLookupFile().getParent(), tmpLookupFileName);
-            Dump<LongKeyPosition> longKeyDump = new Dump<LongKeyPosition>(LongKeyPosition.class, tmpLookupFile);
+            Dump<LongKeyPosition> longKeyDump = new Dump<>(LongKeyPosition.class, tmpLookupFile);
             longKeyDump.addAll(sorter);
             longKeyDump.close();
             renameTmpLookupFile(tmpLookupFileName, tmpLookupFile);
-            _longKeyDump = new Dump<LongKeyPosition>(LongKeyPosition.class, getLookupFile());
+            _longKeyDump = new Dump<>(LongKeyPosition.class, getLookupFile());
          } else {
-            InfiniteSorter<IntKeyPosition> sorter = new InfiniteSorter<IntKeyPosition>(_maxLookupSizeInMemory, _dump.getDumpFile().getParentFile(),
-               new SingleTypeObjectStreamProvider<Externalizable>(IntKeyPosition.class));
+            InfiniteSorter<IntKeyPosition> sorter = new InfiniteSorter<IntKeyPosition>(_maxLookupSizeInMemory, -1, _dump.getDumpFile().getParentFile(),
+               new SingleTypeObjectStreamProvider<>(IntKeyPosition.class), Comparator.naturalOrder());
             // the existing dump is already sorted, so this is an optimisation to avoid re-externalization and re-sorting of the existing objects
             sorter.addSortedSegment(_intKeyDump);
 
@@ -695,11 +695,11 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
                }
             }
             File tmpLookupFile = new File(getLookupFile().getParent(), tmpLookupFileName);
-            Dump<IntKeyPosition> intKeyDump = new Dump<IntKeyPosition>(IntKeyPosition.class, tmpLookupFile);
+            Dump<IntKeyPosition> intKeyDump = new Dump<>(IntKeyPosition.class, tmpLookupFile);
             intKeyDump.addAll(sorter);
             intKeyDump.close();
             renameTmpLookupFile(tmpLookupFileName, tmpLookupFile);
-            _intKeyDump = new Dump<IntKeyPosition>(IntKeyPosition.class, getLookupFile());
+            _intKeyDump = new Dump<>(IntKeyPosition.class, getLookupFile());
          }
 
          _lookupFileLength = getLookupFile().length();
@@ -950,8 +950,8 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
          catch ( Exception argh ) {
             if ( argh instanceof IllegalArgumentException ) {
                throw (IllegalArgumentException)argh;
-               // else ignore
             }
+            throw new RuntimeException(argh);
          }
       }
    }
@@ -988,7 +988,7 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
 
       @Override
       public int compareTo( ExternalizableKeyPosition o ) {
-         return _key.hashCode() < o._key.hashCode() ? -1 : (_key.hashCode() == o._key.hashCode() ? 0 : 1);
+         return Integer.compare(_key.hashCode(), o._key.hashCode());
          // don't compare positions (it might become -1 which would lead into a broken sorting)
       }
    }
@@ -1008,7 +1008,7 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
 
       @Override
       public int compareTo( IntKeyPosition o ) {
-         return _key < o._key ? -1 : (_key == o._key ? 0 : 1);
+         return Integer.compare(_key, o._key);
          // don't compare positions (it might become -1 which would lead into a broken sorting)
       }
 
@@ -1042,7 +1042,7 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
 
       @Override
       public int compareTo( LongKeyPosition o ) {
-         return _key < o._key ? -1 : (_key == o._key ? 0 : 1);
+         return Long.compare(_key, o._key);
          // don't compare positions (it might become -1 which would lead into a broken sorting)
       }
 
@@ -1078,11 +1078,11 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
 
       @Override
       public int compareTo( StringKeyPosition o ) {
-         int r = _key.hashCode() < o._key.hashCode() ? -1 : (_key.hashCode() == o._key.hashCode() ? 0 : 1);
+         int r = Integer.compare(_key.hashCode(), o._key.hashCode());
          if ( r != 0 ) {
             return r;
          }
-         return _pos < o._pos ? -1 : (_pos == o._pos ? 0 : 1);
+         return Long.compare(_pos, o._pos);
       }
    }
 

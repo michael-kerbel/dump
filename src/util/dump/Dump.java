@@ -634,7 +634,7 @@ public class Dump<E> implements DumpInput<E> {
     */
    public InfiniteSorter<E> sort( @Nullable Comparator<E> comparator, int maxItemsInMemory ) throws Exception {
       assertOpen();
-      InfiniteSorter<E> sorter = new InfiniteSorter<>(maxItemsInMemory, _dumpFile.getParentFile());
+      InfiniteSorter<E> sorter = new InfiniteSorter<>(maxItemsInMemory, -1, _dumpFile.getParentFile());
       if ( comparator != null ) {
          sorter.setComparator(comparator);
       }
