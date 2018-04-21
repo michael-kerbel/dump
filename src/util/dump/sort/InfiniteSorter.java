@@ -52,42 +52,44 @@ public class InfiniteSorter<E> implements Iterable<E> {
     * object or by default to the temporary OS directory.
     */
    public static final int     DEFAULT_MAX_ITEMS_IN_MEMORY = 100_000;
+   public static final int     DEFAULT_BUFFER_SIZE         = 262144;
 
    // private members for public configuration
    private Comparator<E>        _comparator            = null;
    // private temporary files provider
    private TempFileProvider     _tempFileProvider;
    // private control members
-   private int                  _totalBufferedElements = 0;                 // *Total* number of items buffered
-   private List<E>              _memoryBuffer          = new ArrayList<>(); // memory items buffer
+   private int                  _totalBufferedElements = 0;                  // *Total* number of items buffered
+   private List<E>              _memoryBuffer          = new ArrayList<>();  // memory items buffer
    private List<File>           _segmentFiles          = null;
    private ObjectStreamProvider _objectStreamProvider  = null;
    private int                  _maxItemsInMemory;
+   // the buffer size of the sorted segmentFiles during merging
+   private int                  _bufferSize            = DEFAULT_BUFFER_SIZE;
 
 
    public InfiniteSorter() {
-      init(DEFAULT_MAX_ITEMS_IN_MEMORY, null, TempFileProvider.DEFAULT_PROVIDER);
+      init(DEFAULT_MAX_ITEMS_IN_MEMORY, -1, null, TempFileProvider.DEFAULT_PROVIDER);
    }
 
    public InfiniteSorter( File tempDir ) {
-      init(DEFAULT_MAX_ITEMS_IN_MEMORY, null, new TempFileProvider(tempDir));
+      init(DEFAULT_MAX_ITEMS_IN_MEMORY, -1, null, new TempFileProvider(tempDir));
    }
 
    public InfiniteSorter( int maxItemsInMemory ) {
-      init(maxItemsInMemory, null, TempFileProvider.DEFAULT_PROVIDER);
+      init(maxItemsInMemory, -1, null, TempFileProvider.DEFAULT_PROVIDER);
    }
 
-   public InfiniteSorter( int maxItemsInMemory, File tempDir ) {
-      init(maxItemsInMemory, null, new TempFileProvider(tempDir));
+   public InfiniteSorter( int maxItemsInMemory, int bufferSize ) {
+      init(maxItemsInMemory, bufferSize, null, TempFileProvider.DEFAULT_PROVIDER);
    }
 
-   public InfiniteSorter( int maxItemsInMemory, File tempDir, ObjectStreamProvider objectStreamProvider, Comparator<E> comparator ) {
-      init(maxItemsInMemory, comparator, new TempFileProvider(tempDir));
-      this._objectStreamProvider = objectStreamProvider;
+   public InfiniteSorter( int maxItemsInMemory, int bufferSize , File tempDir ) {
+      init(maxItemsInMemory, -1, null, new TempFileProvider(tempDir));
    }
 
-   public InfiniteSorter( int maxItemsInMemory, File tempDir, ObjectStreamProvider objectStreamProvider ) {
-      init(maxItemsInMemory, null, new TempFileProvider(tempDir));
+   public InfiniteSorter( int maxItemsInMemory, int bufferSize, File tempDir, ObjectStreamProvider objectStreamProvider, Comparator<E> comparator ) {
+      init(maxItemsInMemory, bufferSize, comparator, new TempFileProvider(tempDir));
       this._objectStreamProvider = objectStreamProvider;
    }
 
@@ -223,13 +225,13 @@ public class InfiniteSorter<E> implements Iterable<E> {
       List<DumpInput<E>> streamsbuffer = new ArrayList<>();
 
       for ( File f : _segmentFiles ) {
-         streamsbuffer.add(new DumpReader<>(f, true, _objectStreamProvider));
+         streamsbuffer.add(new DumpReader<>(f, true, _bufferSize, _objectStreamProvider));
       }
       return streamsbuffer;
    }
 
    // init the class
-   private void init( int maxItemsInMemory, Comparator<E> comparator, TempFileProvider tempFileProvider ) {
+   private void init( int maxItemsInMemory, int bufferSize, Comparator<E> comparator, TempFileProvider tempFileProvider ) {
       _maxItemsInMemory = maxItemsInMemory;
       if ( _maxItemsInMemory < 1 ) {
          throw new IllegalArgumentException("maxItemsInMemory must be positive: " + maxItemsInMemory);
@@ -237,6 +239,8 @@ public class InfiniteSorter<E> implements Iterable<E> {
 
       this._comparator = comparator;
       this._tempFileProvider = tempFileProvider;
+      if ( bufferSize > 0 )
+         this._bufferSize = bufferSize;
 
       startFromScratch();
    }
