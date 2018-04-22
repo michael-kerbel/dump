@@ -2,12 +2,13 @@ package util.dump;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutput;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
+
+import javax.annotation.Nullable;
 
 import util.dump.stream.ExternalizableObjectStreamProvider;
 import util.dump.stream.ObjectStreamProvider;
@@ -29,13 +30,14 @@ import util.dump.stream.ObjectStreamProvider;
 public class DumpWriter<E> implements DumpOutput<E> {
 
    // default configuration for the buffered output stream  
-   public static final int      DEFAULT_BUFFER_SIZE = 65536; // 64Kb
+   public static final int DEFAULT_BUFFER_SIZE = 65536; // 64Kb
 
    // private output streams
    private OutputStream         primitiveOutputStream;
    private BufferedOutputStream bufferedOutputStream;
    private ObjectOutput         objectOutputStream;
    private Method               outputResetMethod;
+
 
    /**
     * Convenience constructor allowing you to specify a File instance as target for 
@@ -48,10 +50,8 @@ public class DumpWriter<E> implements DumpOutput<E> {
     * the option of avoiding it completely.
     * 
     * @param outputfile target file to use in order to store the serialized objects
-    * @throws FileNotFoundException
-    * @throws IOException
     */
-   public DumpWriter( File outputfile ) throws FileNotFoundException, IOException {
+   public DumpWriter( File outputfile ) throws IOException {
       this(new FileOutputStream(outputfile), DEFAULT_BUFFER_SIZE, null);
    }
 
@@ -66,18 +66,16 @@ public class DumpWriter<E> implements DumpOutput<E> {
     * 
     * @param outputfile target file to use in order to store the serialized objects
     * @param buffersize the size of the BufferedOutputStream. If 0, then no BufferedOutputStream is created 
-    * @throws FileNotFoundException
-    * @throws IOException
     */
-   public DumpWriter( File outputfile, int buffersize ) throws FileNotFoundException, IOException {
+   public DumpWriter( File outputfile, int buffersize ) throws IOException {
       this(new FileOutputStream(outputfile), buffersize, null);
    }
 
-   public DumpWriter( File outputfile, ObjectStreamProvider objectStreamProvider ) throws FileNotFoundException, IOException {
+   public DumpWriter( File outputfile, @Nullable ObjectStreamProvider objectStreamProvider ) throws IOException {
       this(new FileOutputStream(outputfile), DEFAULT_BUFFER_SIZE, objectStreamProvider);
    }
 
-   public DumpWriter( OutputStream outputstream, int buffersize, ObjectStreamProvider objectStreamProvider ) throws IOException {
+   public DumpWriter( OutputStream outputstream, int buffersize, @Nullable ObjectStreamProvider objectStreamProvider ) throws IOException {
       init(outputstream, buffersize, objectStreamProvider);
    }
 
@@ -97,18 +95,10 @@ public class DumpWriter<E> implements DumpOutput<E> {
    }
 
    /**
-    * Use at your own risk. Doing so may corrupt the stream!
-    */
-   public ObjectOutput getObjectOutput() {
-      return objectOutputStream;
-   }
-
-   /**
     * 
     * Writes the given object into the internal ObjectOutputSteam. 
     * 
     * @param objectToSerialize obejct to write into the output stream
-    * @throws IOException
     */
    public void write( E objectToSerialize ) throws IOException {
       // writes the object into the output stream and resets
@@ -130,8 +120,6 @@ public class DumpWriter<E> implements DumpOutput<E> {
     * Writes the given object collection into the internal ObjectOutputSteam. 
     * 
     * @param inputelements stream of objects to write into the output stream
-    * @throws IOException
-    * @throws TypeSafeInputException
     */
    public void writeAll( DumpInput<E> inputelements ) throws IOException {
 
