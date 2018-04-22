@@ -635,9 +635,8 @@ public class Dump<E> implements DumpInput<E> {
    public InfiniteSorter<E> sort( @Nullable Comparator<E> comparator, int maxItemsInMemory ) throws Exception {
       assertOpen();
       InfiniteSorter<E> sorter = new InfiniteSorter<>(maxItemsInMemory, -1, _dumpFile.getParentFile());
-      if ( comparator != null ) {
-         sorter.setComparator(comparator);
-      }
+      sorter.setObjectStreamProvider(_streamProvider);
+      sorter.setComparator(comparator);
       if ( Externalizable.class.isAssignableFrom(_beanClass) ) {
          sorter.setObjectStreamProvider(new SingleTypeObjectStreamProvider(_beanClass));
       }
