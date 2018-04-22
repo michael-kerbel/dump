@@ -4,12 +4,14 @@ import java.io.BufferedInputStream;
 import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInput;
 import java.io.OptionalDataException;
 import java.util.Iterator;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import util.dump.stream.ExternalizableObjectStreamProvider;
 import util.dump.stream.ObjectStreamProvider;
@@ -22,6 +24,9 @@ import util.dump.stream.ObjectStreamProvider;
  */
 public class DumpReader<E> implements DumpInput<E>, Iterator<E> {
 
+   // default configuration for the buffered output stream
+   public static final int DEFAULT_BUFFER_SIZE = 65536;
+
    BufferedInputStream     _inputbuffer;
    InputStream             _primitiveInputStream;
    ObjectInput             _objectInputStream;
@@ -29,9 +34,6 @@ public class DumpReader<E> implements DumpInput<E>, Iterator<E> {
    boolean                 _nextPrepared       = false;
    File                    _sourceFile         = null;
    boolean                 _deleteFileOnEOF    = false;
-
-   // default configuration for the buffered output stream
-   public static final int DEFAULT_BUFFER_SIZE = 65536;
 
 
    /**
@@ -44,20 +46,17 @@ public class DumpReader<E> implements DumpInput<E>, Iterator<E> {
     * also use the extended constructor in order to indicate this class to delete the
     * file automatically when its EOF is reached
     *
-    * @param _sourceFile source file to use in order to store the serialized objects
-    * @throws FileNotFoundException
-    * @throws IOException
+    * @param sourceFile source file to use in order to store the serialized objects
     */
-   public DumpReader( File sourceFile ) throws FileNotFoundException, IOException {
+   public DumpReader( File sourceFile ) throws IOException {
       this(sourceFile, false, DEFAULT_BUFFER_SIZE, null);
    }
 
-   public DumpReader( File sourceFile, boolean deleteFileOnEOF, int buffersize, ObjectStreamProvider objectStreamProvider )
-         throws FileNotFoundException, IOException {
+   public DumpReader( File sourceFile, boolean deleteFileOnEOF, int buffersize, @Nullable ObjectStreamProvider objectStreamProvider ) throws IOException {
       initFile(sourceFile, deleteFileOnEOF, buffersize, objectStreamProvider);
    }
 
-   public DumpReader( File sourceFile, boolean deleteFileOnEOF, ObjectStreamProvider objectStreamProvider ) throws FileNotFoundException, IOException {
+   public DumpReader( File sourceFile, boolean deleteFileOnEOF, @Nullable ObjectStreamProvider objectStreamProvider ) throws IOException {
       this(sourceFile, deleteFileOnEOF, DEFAULT_BUFFER_SIZE, objectStreamProvider);
    }
 
@@ -70,12 +69,10 @@ public class DumpReader<E> implements DumpInput<E>, Iterator<E> {
     * also use the extended constructor in order to indicate this class to delete the
     * file automatically when its EOF is reached
     *
-    * @param _sourceFile source file to use in order to store the serialized objects
+    * @param sourceFile source file to use in order to store the serialized objects
     * @param buffersize size in bytes for the input stream, use "0" for no input buffering
-    * @throws FileNotFoundException
-    * @throws IOException
     */
-   public DumpReader( File sourceFile, int buffersize ) throws FileNotFoundException, IOException {
+   public DumpReader( File sourceFile, int buffersize ) throws IOException {
       this(sourceFile, false, buffersize, null);
    }
 
@@ -85,8 +82,7 @@ public class DumpReader<E> implements DumpInput<E>, Iterator<E> {
     *
     * The DumpReader instance will use a 64Kb input buffer.
     *
-    * @param _primitiveInputStream generic input stream to use in order to serialize the objects
-    * @throws IOException
+    * @param primitiveInputStream generic input stream to use in order to serialize the objects
     */
    public DumpReader( InputStream primitiveInputStream ) throws IOException {
       this(primitiveInputStream, DEFAULT_BUFFER_SIZE);
@@ -96,9 +92,8 @@ public class DumpReader<E> implements DumpInput<E>, Iterator<E> {
     * Generic constructor accepting a standard InputStream to use in order to deserialize the
     * type safe objects.
     *
-    * @param _primitiveInputStream generic input stream to use in order to serialize the objects
+    * @param primitiveInputStream generic input stream to use in order to serialize the objects
     * @param buffersize size in bytes for the input stream, use "0" for no input buffering
-    * @throws IOException
     */
    public DumpReader( InputStream primitiveInputStream, int buffersize ) throws IOException {
       this(primitiveInputStream, buffersize, null);
@@ -122,15 +117,8 @@ public class DumpReader<E> implements DumpInput<E>, Iterator<E> {
     *
     */
    @Override
-   public void close() throws IOException {
+   public void close() {
       closeStreams(false);
-   }
-
-   /**
-    * Use at your own risk. Hacking here may corrupt the stream!
-    */
-   public ObjectInput getObjectInput() {
-      return _objectInputStream;
    }
 
    @Override
@@ -141,12 +129,13 @@ public class DumpReader<E> implements DumpInput<E>, Iterator<E> {
 
       try {
          // reads the object and demands a object validation
+         //noinspection unchecked
          _nextObject = (E)_objectInputStream.readObject();
          _nextPrepared = true;
          return true;
       }
       catch ( OptionalDataException e ) {
-         _nextObject = (E)null;
+         _nextObject = null;
          if ( e.eof ) {
             closeStreams(true);
             _nextPrepared = true;
@@ -156,7 +145,7 @@ public class DumpReader<E> implements DumpInput<E>, Iterator<E> {
          }
       }
       catch ( EOFException e ) {
-         _nextObject = (E)null;
+         _nextObject = null;
          _nextPrepared = true;
          closeStreams(true);
          return false;
@@ -164,7 +153,7 @@ public class DumpReader<E> implements DumpInput<E>, Iterator<E> {
       catch ( Exception e ) {
          boolean kryoEofException = e.getMessage() != null && e.getMessage().contains("Buffer underflow");
 
-         _nextObject = (E)null;
+         _nextObject = null;
          closeStreams(true);
          if ( kryoEofException ) {
             _nextPrepared = true;
@@ -176,14 +165,14 @@ public class DumpReader<E> implements DumpInput<E>, Iterator<E> {
    }
 
    @Override
-   public Iterator<E> iterator() {
+   public @Nonnull Iterator<E> iterator() {
       return this;
    }
 
-   @Override
    /** BEWARE: only the first call of next() after a successful hasNext() returns the element! Consecutive
     * calls yield null. The reference to the read object is not kept, in order to keep memory usage low.
     * (huge objects would stay on the heap otherwise) */
+   @Override
    public E next() {
       _nextPrepared = false;
       E nextObject = _nextObject;
@@ -245,8 +234,7 @@ public class DumpReader<E> implements DumpInput<E>, Iterator<E> {
       }
    }
 
-   private void initFile( File fileForSource, boolean deleteFileOnEOF, int bufferSize, ObjectStreamProvider objectStreamProvider )
-         throws FileNotFoundException, IOException {
+   private void initFile( File fileForSource, boolean deleteFileOnEOF, int bufferSize, ObjectStreamProvider objectStreamProvider ) throws IOException {
 
       this._sourceFile = fileForSource;
       this._deleteFileOnEOF = deleteFileOnEOF;
