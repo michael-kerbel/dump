@@ -30,8 +30,10 @@ public class SingleTypeObjectInputStream<E extends Externalizable> extends DataI
 
    private final Class          _class;
    private Compression          _compressionType              = null;
+   private byte[]               _dict;
    private ByteArrayInputStream _compressionByteBuffer        = null;
    private InputStream          _originalIn                   = null;
+   private byte[]               _reusableCompressedBytesArray = null;
    private byte[]               _reusableUncompressBytesArray = null;
 
 
@@ -41,9 +43,15 @@ public class SingleTypeObjectInputStream<E extends Externalizable> extends DataI
    }
 
    public SingleTypeObjectInputStream( InputStream in, Class c, Compression compressionType ) {
+      this(in, c, compressionType, null);
+   }
+
+   public SingleTypeObjectInputStream( InputStream in, Class c, Compression compressionType, byte[] dict ) {
       this(in, c);
       _compressionType = compressionType;
+      _dict = dict;
       _reusableUncompressBytesArray = new byte[8192];
+      _reusableCompressedBytesArray = new byte[8192];
    }
 
    @Override
@@ -59,10 +67,10 @@ public class SingleTypeObjectInputStream<E extends Externalizable> extends DataI
                if ( length == 0xffff ) {
                   length = readInt();
                }
-
-               byte[] bytes = new byte[length];
-               readFully(bytes);
-               _reusableUncompressBytesArray = _compressionType.uncompress(bytes, _reusableUncompressBytesArray);
+               if ( _reusableCompressedBytesArray.length < length )
+                  _reusableCompressedBytesArray = new byte[length];
+               readFully(_reusableCompressedBytesArray, 0, length);
+               _reusableUncompressBytesArray = _compressionType.uncompress(_reusableCompressedBytesArray, length, _reusableUncompressBytesArray, _dict);
 
                _compressionByteBuffer = new ByteArrayInputStream(_reusableUncompressBytesArray);
                in = _compressionByteBuffer;
@@ -84,6 +92,9 @@ public class SingleTypeObjectInputStream<E extends Externalizable> extends DataI
             in = _originalIn;
             _originalIn = null;
             _compressionByteBuffer = null;
+         }
+         if ( _reusableCompressedBytesArray != null && _reusableCompressedBytesArray.length > 128 * 1024 ) {
+            _reusableCompressedBytesArray = new byte[8192];
          }
          if ( _reusableUncompressBytesArray != null && _reusableUncompressBytesArray.length > 128 * 1024 ) {
             _reusableUncompressBytesArray = new byte[8192];

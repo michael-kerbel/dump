@@ -36,13 +36,15 @@ public class ExternalizableObjectInputStream extends DataInputStream implements 
    }
 
 
-   private Map<String, Class>   _classes                      = new HashMap<String, Class>();
+   private Map<String, Class> _classes = new HashMap<String, Class>();
 
    private ObjectInputStream    _objectInputStream;
    private Compression          _compressionType              = null;
+   private byte[]               _dict;
    private ByteArrayInputStream _compressionByteBuffer        = null;
    private InputStream          _originalIn                   = null;
    private ObjectInputStream    _originalObjectInputStream;
+   private byte[]               _reusableCompressedBytesArray = null;
    private byte[]               _reusableUncompressBytesArray = null;
 
 
@@ -52,8 +54,14 @@ public class ExternalizableObjectInputStream extends DataInputStream implements 
    }
 
    public ExternalizableObjectInputStream( InputStream in, Compression compressionType ) throws IOException {
+      this(in, compressionType, null);
+   }
+
+   public ExternalizableObjectInputStream( InputStream in, Compression compressionType, byte[] dict ) throws IOException {
       this(in);
       _compressionType = compressionType;
+      _dict = dict;
+      _reusableCompressedBytesArray = new byte[8192];
    }
 
    @Override
@@ -78,9 +86,10 @@ public class ExternalizableObjectInputStream extends DataInputStream implements 
                      length = readInt();
                   }
 
-                  byte[] bytes = new byte[length];
-                  readFully(bytes);
-                  _reusableUncompressBytesArray = _compressionType.uncompress(bytes, _reusableUncompressBytesArray);
+                  if ( _reusableCompressedBytesArray.length < length )
+                     _reusableCompressedBytesArray = new byte[length];
+                  readFully(_reusableCompressedBytesArray, 0, length);
+                  _reusableUncompressBytesArray = _compressionType.uncompress(_reusableCompressedBytesArray, length, _reusableUncompressBytesArray, _dict);
 
                   _compressionByteBuffer = new ByteArrayInputStream(_reusableUncompressBytesArray);
                   in = _compressionByteBuffer;

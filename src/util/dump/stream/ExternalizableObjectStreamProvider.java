@@ -26,26 +26,38 @@ import java.io.OutputStream;
 public class ExternalizableObjectStreamProvider implements ObjectStreamProvider {
 
    private Compression _compressionType = null;
+   private byte[]      _dict;
 
 
    public ExternalizableObjectStreamProvider() {}
 
-   /**
-    * @param compression if set to a value > 0 the input and output streams are wrapped with GZip compression
-    * @see java.util.zip.Deflater
-    */
    public ExternalizableObjectStreamProvider( Compression compressionType ) {
       _compressionType = compressionType;
    }
 
+   public ExternalizableObjectStreamProvider( Compression compressionType, Iterable dictInputProvider, byte[] dict ) {
+      _compressionType = compressionType;
+      if ( dict != null && dict.length > 0 ) {
+         _dict = dict;
+      } else if ( dictInputProvider != null ) {
+         //noinspection unchecked
+         _dict = compressionType.initDictionary(dictInputProvider, new ExternalizableObjectStreamProvider());
+      }
+   }
+
    @Override
    public ObjectInput createObjectInput( InputStream in ) throws IOException {
-      return new ExternalizableObjectInputStream(in, _compressionType);
+      return new ExternalizableObjectInputStream(in, _compressionType, _dict);
    }
 
    @Override
    public ObjectOutput createObjectOutput( OutputStream out ) throws IOException {
-      return new ExternalizableObjectOutputStream(out, _compressionType);
+      return new ExternalizableObjectOutputStream(out, _compressionType, _dict);
+   }
+
+   @Override
+   public byte[] getStaticCompressionDictionary() {
+      return _dict;
    }
 
 
@@ -53,12 +65,13 @@ public class ExternalizableObjectStreamProvider implements ObjectStreamProvider 
       Object(0), Externalizable(1), String(2), Date(3), UUID(4), Integer(5), Double(6), Float(7), Long(8);
 
       static InstanceType[] LOOKUP = new InstanceType[255];
+
+
       static {
          for ( InstanceType it : values() ) {
             LOOKUP[it.getId()] = it;
          }
       }
-
 
       static InstanceType forId( byte id ) {
          return LOOKUP[id];

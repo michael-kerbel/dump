@@ -11,12 +11,12 @@ import java.util.Date;
 import java.util.UUID;
 
 import util.dump.stream.ExternalizableObjectStreamProvider.InstanceType;
-import util.dump.stream.SingleTypeObjectOutputStream.FastByteArrayOutputStream;
 import util.io.IOUtils;
 
 
-public class ExternalizableObjectOutputStream extends DataOutputStream implements ObjectOutput {
+public class ExternalizableObjectOutputStream extends DataOutputStream implements ObjectOutput, CompressingObjectOutputStream {
 
+   @SuppressWarnings("unused")
    public static byte[] writeSingleInstance( Externalizable e ) {
       ByteArrayOutputStream bytes = new ByteArrayOutputStream();
 
@@ -36,7 +36,7 @@ public class ExternalizableObjectOutputStream extends DataOutputStream implement
    }
 
 
-   private ObjectOutputStream        _objectOutputStream;
+   private ObjectOutputStream _objectOutputStream;
 
    private boolean                   _resetPending               = false;
    private Compression               _compressionType            = null;
@@ -44,6 +44,7 @@ public class ExternalizableObjectOutputStream extends DataOutputStream implement
    private OutputStream              _originalOut                = null;
    private ObjectOutputStream        _originalObjectOutputStream = null;
    private byte[]                    _reusableCompressBytesArray = null;
+   private byte[]                    _dict;
 
 
    public ExternalizableObjectOutputStream( OutputStream out ) throws IOException {
@@ -52,10 +53,17 @@ public class ExternalizableObjectOutputStream extends DataOutputStream implement
    }
 
    public ExternalizableObjectOutputStream( OutputStream out, Compression compressionType ) throws IOException {
+      this(out, compressionType, null);
+   }
+
+   public ExternalizableObjectOutputStream( OutputStream out, Compression compressionType, byte[] dict ) throws IOException {
       this(out);
       _compressionType = compressionType;
       _compressionByteBuffer = new FastByteArrayOutputStream();
       _reusableCompressBytesArray = new byte[8192];
+      if ( dict != null && dict.length > 0 ) {
+         _dict = dict;
+      }
    }
 
    @Override
@@ -125,38 +133,11 @@ public class ExternalizableObjectOutputStream extends DataOutputStream implement
          }
 
          if ( compress ) {
-            byte[] bytes = _compressionByteBuffer.getBuf();
-            int bytesLength = _compressionByteBuffer.size();
-            _reusableCompressBytesArray = _compressionType.compress(bytes, bytesLength, _reusableCompressBytesArray);
-            int compressedLength = _reusableCompressBytesArray.length;
-            if ( _compressionType == Compression.Snappy || _compressionType == Compression.LZ4 ) {
-               compressedLength = (((_reusableCompressBytesArray[0] & 0xff) << 24) + ((_reusableCompressBytesArray[1] & 0xff) << 16)
-                  + ((_reusableCompressBytesArray[2] & 0xff) << 8) + ((_reusableCompressBytesArray[3] & 0xff) << 0));
-            }
             out = _originalOut;
-
-            if ( compressedLength + 6 < bytes.length ) {
-               out.write(1);
-
-               if ( compressedLength >= 65535 ) {
-                  out.write(0xff);
-                  out.write(0xff);
-                  out.write((compressedLength >>> 24) & 0xFF);
-                  out.write((compressedLength >>> 16) & 0xFF);
-               }
-               out.write((compressedLength >>> 8) & 0xFF);
-               out.write((compressedLength >>> 0) & 0xFF);
-
-               if ( _compressionType == Compression.Snappy || _compressionType == Compression.LZ4 ) {
-                  out.write(_reusableCompressBytesArray, 4, compressedLength);
-               } else {
-                  out.write(_reusableCompressBytesArray);
-               }
-            } else {
-               out.write(0);
-               out.write(bytes);
-            }
             _originalOut = null;
+
+            compress(out, _compressionType, _compressionByteBuffer, _reusableCompressBytesArray, _dict);
+
             _objectOutputStream = _originalObjectOutputStream;
             _originalObjectOutputStream = null;
          }
@@ -171,7 +152,7 @@ public class ExternalizableObjectOutputStream extends DataOutputStream implement
       }
 
       @Override
-      protected void writeStreamHeader() throws IOException {
+      protected void writeStreamHeader() {
          // do nothing
       }
    }
