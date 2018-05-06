@@ -113,13 +113,30 @@ public class Dump<E> implements DumpInput<E> {
       }));
    }
 
+   static byte[] readDictionaryFromMeta( File compressionDictionaryFile ) {
+      if ( !compressionDictionaryFile.exists() )
+         return null;
+      try {
+         RandomAccessFile metaRAF = new RandomAccessFile(compressionDictionaryFile, "rw");
+         int length = metaRAF.readInt();
+         byte[] dict = new byte[length];
+         metaRAF.readFully(dict);
+         return dict;
+      }
+      catch ( Exception e ) {
+         // ignore
+      }
+      return null;
+   }
 
-   final Class          _beanClass;
-   ObjectStreamProvider _streamProvider;
-   final File           _dumpFile;
-   File                 _deletionsFile;
-   File                 _metaFile;
-   Set<DumpIndex<E>>    _indexes = new HashSet<>();
+
+   final Class                   _beanClass;
+   ObjectStreamProvider          _streamProvider;
+   final File                    _dumpFile;
+   File                          _deletionsFile;
+   File                          _metaFile;
+   File                          _compressionDictionaryFile;
+   Set<DumpIndex<E>>             _indexes                    = new HashSet<>();
 
    DumpWriter<E>                 _writer;
    DumpReader<E>                 _reader;
@@ -127,7 +144,7 @@ public class Dump<E> implements DumpInput<E> {
    RandomAccessFile              _raf;
    ResettableBufferedInputStream _resettableBufferedInputStream;
    DataOutputStream              _deletionsOutput;
-   protected TLongSet            _deletedPositions = new TLongHashSet();
+   protected TLongSet            _deletedPositions           = new TLongHashSet();
 
    /** The keys are positions in the dump file and the values are the bytes of the serialized item stored there.
     * Appended to these bytes is a space efficient encoding (see <code>longToBytes(long)</code>) of the next
@@ -136,31 +153,31 @@ public class Dump<E> implements DumpInput<E> {
    int                           _cacheSize;
    ObjectInput                   _cacheObjectInput;
    ResettableBufferedInputStream _cacheByteInput;
-   Map<Long, byte[]>             _singleItemCache = new HashMap<>();
-   AtomicInteger                 _cacheLookups    = new AtomicInteger(0);
-   AtomicInteger                 _cacheHits       = new AtomicInteger(0);
+   Map<Long, byte[]>             _singleItemCache            = new HashMap<>();
+   AtomicInteger                 _cacheLookups               = new AtomicInteger(0);
+   AtomicInteger                 _cacheHits                  = new AtomicInteger(0);
 
-   ByteArrayOutputStream _updateByteOutput;
-   ObjectOutput          _updateOut;
-   RandomAccessFile      _updateRaf;
-   long                  _updateRafPosition;
+   ByteArrayOutputStream         _updateByteOutput;
+   ObjectOutput                  _updateOut;
+   RandomAccessFile              _updateRaf;
+   long                          _updateRafPosition;
 
-   boolean _isClosed;
+   boolean                       _isClosed;
 
-   ThreadLocal<Long> _nextItemPos = new LongThreadLocal();
-   ThreadLocal<Long> _lastItemPos = new LongThreadLocal();
+   ThreadLocal<Long>             _nextItemPos                = new LongThreadLocal();
+   ThreadLocal<Long>             _lastItemPos                = new LongThreadLocal();
 
    /** incremented on each write operation */
-   long _sequence = (long)(Math.random() * 1000000);
+   long                          _sequence                   = (long)(Math.random() * 1000000);
 
    final EnumSet<DumpAccessFlag> _mode;
 
-   RandomAccessFile _metaRaf;
-   FileLock         _dumpLock;
+   RandomAccessFile              _metaRaf;
+   FileLock                      _dumpLock;
 
-   boolean _willBeClosedDuringShutdown = false;
+   boolean                       _willBeClosedDuringShutdown = false;
 
-   String _instantiationDetails;
+   String                        _instantiationDetails;
 
 
    /**
@@ -171,16 +188,26 @@ public class Dump<E> implements DumpInput<E> {
     * @param beanClass must implement {@link Externalizable} otherwise the {@link SingleTypeObjectStreamProvider} that is used will fail during runtime
     * @param dumpFile the dump file
     */
-   public Dump( Class beanClass, File dumpFile ) {
+   public Dump( Class<E> beanClass, File dumpFile ) {
       this(beanClass, new SingleTypeObjectStreamProvider(beanClass), dumpFile, DEFAULT_CACHE_SIZE, DEFAULT_MODE);
    }
 
    /**
     * same as {@link #Dump(Class, File)} but allows to set the compression algorithm to use.
-    * @param compression the compression to use for the SingleTypeObjectStreamProvider, i.e. each bean is stored compressed using this algorithm  
+    * @param compression the compression to use for the SingleTypeObjectStreamProvider, i.e. each bean is stored compressed using this algorithm
     */
-   public Dump( Class beanClass, File dumpFile, Compression compression ) {
+   public Dump( Class<E> beanClass, File dumpFile, Compression compression ) {
       this(beanClass, new SingleTypeObjectStreamProvider(beanClass, compression), dumpFile, DEFAULT_CACHE_SIZE, DEFAULT_MODE);
+   }
+
+   /**
+    * same as {@link #Dump(Class, File)} but allows to set the compression algorithm to use.
+    * @param compression the compression to use for the SingleTypeObjectStreamProvider, i.e. each bean is stored compressed using this algorithm
+    * @param
+    */
+   public Dump( Class<E> beanClass, File dumpFile, Compression compression, Iterable<E> dictInputProvider ) {
+      this(beanClass, new SingleTypeObjectStreamProvider(beanClass, compression, dictInputProvider,
+         readDictionaryFromMeta(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, DEFAULT_MODE);
    }
 
    /**
@@ -188,7 +215,7 @@ public class Dump<E> implements DumpInput<E> {
     *
     * @see DumpAccessFlag
     */
-   public Dump( Class beanClass, File dumpFile, DumpAccessFlag... mode ) {
+   public Dump( Class<E> beanClass, File dumpFile, DumpAccessFlag... mode ) {
       this(beanClass, new SingleTypeObjectStreamProvider(beanClass), dumpFile, DEFAULT_CACHE_SIZE, mode);
    }
 
@@ -197,13 +224,14 @@ public class Dump<E> implements DumpInput<E> {
     * A {@link SoftLRUCache} is used for caching with <code>cacheSize</code> as size. <p/>
     * @param cacheSize may only be greater 0 if you use a {@link SingleTypeObjectStreamProvider} as <code>streamProvider</code>.
     */
-   public Dump( Class beanClass, ObjectStreamProvider streamProvider, File dumpFile, int cacheSize, @Nullable DumpAccessFlag... mode ) {
+   public Dump( Class<? extends E> beanClass, ObjectStreamProvider streamProvider, File dumpFile, int cacheSize, @Nullable DumpAccessFlag... mode ) {
       _beanClass = beanClass;
       _streamProvider = streamProvider;
       _mode = EnumSet.copyOf(Arrays.asList(mode == null || mode.length == 0 ? DEFAULT_MODE : mode));
       _dumpFile = IOUtils.getCanonicalFileQuietly(dumpFile);
       _deletionsFile = new File(dumpFile.getPath() + ".deletions");
       _metaFile = new File(dumpFile.getPath() + ".meta");
+      _compressionDictionaryFile = new File(dumpFile.getPath() + ".meta.compression-dictionary");
       initInstantiationData();
       if ( OPENED_DUMPPATHS.contains(_dumpFile.getPath()) ) {
          String instantiationDetails = "";
@@ -242,6 +270,7 @@ public class Dump<E> implements DumpInput<E> {
          _reader = new DumpReader<>(_dumpFile, false, _streamProvider);
 
          initMeta();
+         writeDictionaryToMeta();
 
          _updateByteOutput = new ByteArrayOutputStream(1024);
          _updateOut = _streamProvider.createObjectOutput(_updateByteOutput);
@@ -428,7 +457,7 @@ public class Dump<E> implements DumpInput<E> {
 
    /**
     * Flush any bytes in the buffer, just in case - this is cheap, if the buffer is empty.
-    * If you want to ensure, that the dump files on disk are in a valid state without closing the dump, 
+    * If you want to ensure, that the dump files on disk are in a valid state without closing the dump,
     * call {@link #flushMeta()} too. Indexes are also flushed.
     */
    public void flush() throws IOException {
@@ -439,7 +468,7 @@ public class Dump<E> implements DumpInput<E> {
    }
 
    /**
-    * Flushes deletions to disk and writes meta file. By calling this and {@link #flush()}, 
+    * Flushes deletions to disk and writes meta file. By calling this and {@link #flush()},
     * you can ensure a valid state on disk, without closing the dump. Of course this costs IO.
     * Indes metas are also flushed.
     */
@@ -534,9 +563,9 @@ public class Dump<E> implements DumpInput<E> {
       }
    }
 
-   /** 
+   /**
     * @return the accumulated hit rate of the cache, value between 0 and 1, 0 if none used
-    * @see Dump#clearCacheHitRate() 
+    * @see Dump#clearCacheHitRate()
     */
    public float getCacheHitRate() {
       int lookups = _cacheLookups.get();
@@ -946,6 +975,17 @@ public class Dump<E> implements DumpInput<E> {
 
    void removeIndex( DumpIndex index ) {
       _indexes.remove(index);
+   }
+
+   void writeDictionaryToMeta() throws IOException {
+      byte[] dictionary = _streamProvider.getStaticCompressionDictionary();
+      if ( dictionary != null ) {
+         RandomAccessFile metaRAF = new RandomAccessFile(_compressionDictionaryFile, "rw");
+         metaRAF.seek(0);
+         metaRAF.writeInt(dictionary.length);
+         metaRAF.write(dictionary);
+         metaRAF.close();
+      }
    }
 
    void writeMeta() throws IOException {

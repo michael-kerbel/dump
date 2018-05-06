@@ -28,6 +28,7 @@ public class JavaObjectStreamProvider implements ObjectStreamProvider {
 
    private final int _compression;
 
+
    public JavaObjectStreamProvider() {
       _compression = 0;
    }
@@ -52,5 +53,10 @@ public class JavaObjectStreamProvider implements ObjectStreamProvider {
          out = new BufferedOutputStream(new ConfigurableGZIPOutputStream(out, _compression));
       }
       return new ObjectOutputStream(out);
+   }
+
+   @Override
+   public byte[] getStaticCompressionDictionary() {
+      return null;
    }
 }

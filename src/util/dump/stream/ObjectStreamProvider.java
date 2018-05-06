@@ -9,8 +9,9 @@ import java.io.OutputStream;
 
 public interface ObjectStreamProvider {
 
-   public ObjectInput createObjectInput( InputStream in ) throws IOException;
+   ObjectInput createObjectInput( InputStream in ) throws IOException;
 
-   public ObjectOutput createObjectOutput( OutputStream out ) throws IOException;
+   ObjectOutput createObjectOutput( OutputStream out ) throws IOException;
 
+   byte[] getStaticCompressionDictionary();
 }

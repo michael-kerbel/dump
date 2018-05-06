@@ -9,7 +9,9 @@ import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.Test;
@@ -23,108 +25,133 @@ public class ExternalizableObjectStreamProviderTest {
    public void test() throws Exception {
       ExternalizableObjectStreamProvider provider = new ExternalizableObjectStreamProvider();
 
-      test(provider);
+      test(provider, createTestBeans(1));
    }
 
    @Test
    public void testCompression() throws Exception {
+      List<TestBean> testBeans = createTestBeans(1);
       ExternalizableObjectStreamProvider provider = new ExternalizableObjectStreamProvider(Compression.GZipLevel0);
-      test(provider);
+      test(provider, testBeans);
       provider = new ExternalizableObjectStreamProvider(Compression.GZipLevel1);
-      test(provider);
+      test(provider, testBeans);
       provider = new ExternalizableObjectStreamProvider(Compression.GZipLevel2);
-      test(provider);
+      test(provider, testBeans);
       provider = new ExternalizableObjectStreamProvider(Compression.GZipLevel3);
-      test(provider);
+      test(provider, testBeans);
       provider = new ExternalizableObjectStreamProvider(Compression.GZipLevel4);
-      test(provider);
+      test(provider, testBeans);
       provider = new ExternalizableObjectStreamProvider(Compression.GZipLevel5);
-      test(provider);
+      test(provider, testBeans);
       provider = new ExternalizableObjectStreamProvider(Compression.GZipLevel6);
-      test(provider);
+      test(provider, testBeans);
       provider = new ExternalizableObjectStreamProvider(Compression.GZipLevel7);
-      test(provider);
+      test(provider, testBeans);
       provider = new ExternalizableObjectStreamProvider(Compression.GZipLevel8);
-      test(provider);
+      test(provider, testBeans);
       provider = new ExternalizableObjectStreamProvider(Compression.GZipLevel9);
-      test(provider);
+      test(provider, testBeans);
       provider = new ExternalizableObjectStreamProvider(Compression.Snappy);
-      test(provider);
+      test(provider, testBeans);
       provider = new ExternalizableObjectStreamProvider(Compression.LZ4);
-      test(provider);
+      test(provider, testBeans);
 
-      SingleTypeObjectStreamProvider<TestExternalizableBean> stProvider = new SingleTypeObjectStreamProvider<TestExternalizableBean>(
-         TestExternalizableBean.class, Compression.GZipLevel0);
-      test(stProvider);
-      stProvider = new SingleTypeObjectStreamProvider<TestExternalizableBean>(TestExternalizableBean.class, Compression.GZipLevel1);
-      test(stProvider);
-      stProvider = new SingleTypeObjectStreamProvider<TestExternalizableBean>(TestExternalizableBean.class, Compression.GZipLevel2);
-      test(stProvider);
-      stProvider = new SingleTypeObjectStreamProvider<TestExternalizableBean>(TestExternalizableBean.class, Compression.GZipLevel3);
-      test(stProvider);
-      stProvider = new SingleTypeObjectStreamProvider<TestExternalizableBean>(TestExternalizableBean.class, Compression.GZipLevel4);
-      test(stProvider);
-      stProvider = new SingleTypeObjectStreamProvider<TestExternalizableBean>(TestExternalizableBean.class, Compression.GZipLevel5);
-      test(stProvider);
-      stProvider = new SingleTypeObjectStreamProvider<TestExternalizableBean>(TestExternalizableBean.class, Compression.GZipLevel6);
-      test(stProvider);
-      stProvider = new SingleTypeObjectStreamProvider<TestExternalizableBean>(TestExternalizableBean.class, Compression.GZipLevel7);
-      test(stProvider);
-      stProvider = new SingleTypeObjectStreamProvider<TestExternalizableBean>(TestExternalizableBean.class, Compression.GZipLevel8);
-      test(stProvider);
-      stProvider = new SingleTypeObjectStreamProvider<TestExternalizableBean>(TestExternalizableBean.class, Compression.GZipLevel9);
-      test(stProvider);
-      stProvider = new SingleTypeObjectStreamProvider<TestExternalizableBean>(TestExternalizableBean.class, Compression.Snappy);
-      test(stProvider);
-      stProvider = new SingleTypeObjectStreamProvider<TestExternalizableBean>(TestExternalizableBean.class, Compression.LZ4);
-      test(stProvider);
+      provider = new ExternalizableObjectStreamProvider(Compression.Zstd1);
+      test(provider, testBeans);
+      provider = new ExternalizableObjectStreamProvider(Compression.Zstd1, createTestBeans(100), null);
+      test(provider, testBeans);
+
+      List<TestExternalizableBean> testExternalizableBeans = createTestExternalizableBean(1);
+      SingleTypeObjectStreamProvider<TestExternalizableBean> stProvider = new SingleTypeObjectStreamProvider<>(TestExternalizableBean.class,
+         Compression.GZipLevel0);
+      test(stProvider, testExternalizableBeans);
+      stProvider = new SingleTypeObjectStreamProvider<>(TestExternalizableBean.class, Compression.GZipLevel1);
+      test(stProvider, testExternalizableBeans);
+      stProvider = new SingleTypeObjectStreamProvider<>(TestExternalizableBean.class, Compression.GZipLevel2);
+      test(stProvider, testExternalizableBeans);
+      stProvider = new SingleTypeObjectStreamProvider<>(TestExternalizableBean.class, Compression.GZipLevel3);
+      test(stProvider, testExternalizableBeans);
+      stProvider = new SingleTypeObjectStreamProvider<>(TestExternalizableBean.class, Compression.GZipLevel4);
+      test(stProvider, testExternalizableBeans);
+      stProvider = new SingleTypeObjectStreamProvider<>(TestExternalizableBean.class, Compression.GZipLevel5);
+      test(stProvider, testExternalizableBeans);
+      stProvider = new SingleTypeObjectStreamProvider<>(TestExternalizableBean.class, Compression.GZipLevel6);
+      test(stProvider, testExternalizableBeans);
+      stProvider = new SingleTypeObjectStreamProvider<>(TestExternalizableBean.class, Compression.GZipLevel7);
+      test(stProvider, testExternalizableBeans);
+      stProvider = new SingleTypeObjectStreamProvider<>(TestExternalizableBean.class, Compression.GZipLevel8);
+      test(stProvider, testExternalizableBeans);
+      stProvider = new SingleTypeObjectStreamProvider<>(TestExternalizableBean.class, Compression.GZipLevel9);
+      test(stProvider, testExternalizableBeans);
+      stProvider = new SingleTypeObjectStreamProvider<>(TestExternalizableBean.class, Compression.Snappy);
+      test(stProvider, testExternalizableBeans);
+      stProvider = new SingleTypeObjectStreamProvider<>(TestExternalizableBean.class, Compression.LZ4);
+      test(stProvider, testExternalizableBeans);
+
+      stProvider = new SingleTypeObjectStreamProvider<>(TestExternalizableBean.class, Compression.Zstd1);
+      test(stProvider, testExternalizableBeans);
+      stProvider = new SingleTypeObjectStreamProvider<>(TestExternalizableBean.class, Compression.Zstd1, createTestExternalizableBean(100), null);
+      test(stProvider, testExternalizableBeans);
    }
 
-   protected void test( SingleTypeObjectStreamProvider<TestExternalizableBean> provider ) throws IOException, ClassNotFoundException {
-      TestExternalizableBean bean = new TestExternalizableBean();
-
-      testInstance(provider, bean);
-
-      bean._d = 1d;
-      bean._date = new Date();
-      bean._f = 1f;
-      bean._i = 1;
-
-      testInstance(provider, bean);
-
-      bean._l = 1L;
-      bean._s = "11376136";
-
-      testInstance(provider, bean);
+   protected List<TestBean> createTestBeans( int n ) {
+      List<TestBean> testBeans = new ArrayList<>();
+      for ( int i = 0; i < n; i++ ) {
+         testBeans.add(new TestBean());
+         TestBean bean = new TestBean();
+         bean._d = 1d;
+         bean._date = new Date();
+         bean._f = 1f;
+         bean._i = 1;
+         bean._o = new TestBeanNonExternalizable();
+         testBeans.add(bean);
+         bean = new TestBean();
+         bean._d = 1d;
+         bean._date = new Date();
+         bean._f = 1f;
+         bean._i = 1;
+         bean._l = 1L;
+         bean._s = "1";
+         bean._u = UUID.randomUUID();
+         bean._o = new TestBeanNonExternalizable();
+         bean._b = new TestBean();
+         bean._b._d = 2d;
+         bean._b._date = new Date();
+         bean._b._f = 2f;
+         bean._b._i = 2;
+         bean._b._l = 2L;
+         bean._b._s = "2";
+         bean._b._u = UUID.randomUUID();
+         testBeans.add(bean);
+      }
+      return testBeans;
    }
 
-   protected void test( ExternalizableObjectStreamProvider provider ) throws IOException, ClassNotFoundException {
-      TestBean bean = new TestBean();
+   protected List<TestExternalizableBean> createTestExternalizableBean( int n ) {
+      List<TestExternalizableBean> testBeans = new ArrayList<>();
+      for ( int i = 0; i < n; i++ ) {
+         testBeans.add(new TestExternalizableBean());
+         TestExternalizableBean bean = new TestExternalizableBean();
+         bean._d = 1d;
+         bean._date = new Date();
+         bean._f = 1f;
+         bean._i = 1;
+         testBeans.add(bean);
+         bean = new TestExternalizableBean();
+         bean._d = 1d;
+         bean._date = new Date();
+         bean._f = 1f;
+         bean._i = 1;
+         bean._l = 1L;
+         bean._s = "11376136";
+         testBeans.add(bean);
+      }
+      return testBeans;
+   }
 
-      testInstance(provider, bean);
-
-      bean._d = 1d;
-      bean._date = new Date();
-      bean._f = 1f;
-      bean._i = 1;
-      bean._o = new TestBeanNonExternalizable();
-
-      testInstance(provider, bean);
-
-      bean._l = 1L;
-      bean._s = "1";
-      bean._u = UUID.randomUUID();
-      bean._o = new TestBeanNonExternalizable();
-      bean._b = new TestBean();
-      bean._b._d = 2d;
-      bean._b._date = new Date();
-      bean._b._f = 2f;
-      bean._b._i = 2;
-      bean._b._l = 2L;
-      bean._b._s = "2";
-      bean._b._u = UUID.randomUUID();
-
-      testInstance(provider, bean);
+   protected void test( ObjectStreamProvider provider, List testBeans ) throws IOException, ClassNotFoundException {
+      for ( Object bean : testBeans )
+         testInstance(provider, bean);
    }
 
    protected void testInstance( ObjectStreamProvider provider, Object bean ) throws IOException, ClassNotFoundException {
@@ -140,67 +167,6 @@ public class ExternalizableObjectStreamProviderTest {
       assertThat(deserialized).isEqualTo(bean);
    }
 
-
-   public static class TestExternalizableBean implements ExternalizableBean {
-
-      @externalize(1)
-      Date   _date;
-      @externalize(2)
-      float  _f;
-      @externalize(3)
-      double _d;
-      @externalize(4)
-      int    _i;
-      @externalize(5)
-      long   _l;
-      @externalize(6)
-      String _s;
-
-
-      public TestExternalizableBean() {}
-
-      @Override
-      public boolean equals( Object obj ) {
-         if ( this == obj ) {
-            return true;
-         }
-         if ( obj == null ) {
-            return false;
-         }
-         if ( getClass() != obj.getClass() ) {
-            return false;
-         }
-         TestExternalizableBean other = (TestExternalizableBean)obj;
-         if ( Double.doubleToLongBits(_d) != Double.doubleToLongBits(other._d) ) {
-            return false;
-         }
-         if ( _date == null ) {
-            if ( other._date != null ) {
-               return false;
-            }
-         } else if ( !_date.equals(other._date) ) {
-            return false;
-         }
-         if ( Float.floatToIntBits(_f) != Float.floatToIntBits(other._f) ) {
-            return false;
-         }
-         if ( _i != other._i ) {
-            return false;
-         }
-         if ( _l != other._l ) {
-            return false;
-         }
-         if ( _s == null ) {
-            if ( other._s != null ) {
-               return false;
-            }
-         } else if ( !_s.equals(other._s) ) {
-            return false;
-         }
-         return true;
-      }
-
-   }
 
    public static class TestBean implements Externalizable {
 
@@ -331,6 +297,67 @@ public class ExternalizableObjectStreamProviderTest {
       public boolean equals( Object obj ) {
          return ((TestBeanNonExternalizable)obj).d == d;
       }
+   }
+
+   public static class TestExternalizableBean implements ExternalizableBean {
+
+      @externalize(1)
+      Date   _date;
+      @externalize(2)
+      float  _f;
+      @externalize(3)
+      double _d;
+      @externalize(4)
+      int    _i;
+      @externalize(5)
+      long   _l;
+      @externalize(6)
+      String _s;
+
+
+      public TestExternalizableBean() {}
+
+      @Override
+      public boolean equals( Object obj ) {
+         if ( this == obj ) {
+            return true;
+         }
+         if ( obj == null ) {
+            return false;
+         }
+         if ( getClass() != obj.getClass() ) {
+            return false;
+         }
+         TestExternalizableBean other = (TestExternalizableBean)obj;
+         if ( Double.doubleToLongBits(_d) != Double.doubleToLongBits(other._d) ) {
+            return false;
+         }
+         if ( _date == null ) {
+            if ( other._date != null ) {
+               return false;
+            }
+         } else if ( !_date.equals(other._date) ) {
+            return false;
+         }
+         if ( Float.floatToIntBits(_f) != Float.floatToIntBits(other._f) ) {
+            return false;
+         }
+         if ( _i != other._i ) {
+            return false;
+         }
+         if ( _l != other._l ) {
+            return false;
+         }
+         if ( _s == null ) {
+            if ( other._s != null ) {
+               return false;
+            }
+         } else if ( !_s.equals(other._s) ) {
+            return false;
+         }
+         return true;
+      }
+
    }
 
 }

@@ -8,6 +8,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.StreamSupport;
 
 import util.dump.Dump;
 import util.dump.DumpUtils;
@@ -22,7 +25,7 @@ public class CompressionBenchmark {
 
 
    public static void main( String[] args ) throws Exception {
-      new CompressionBenchmark(Compression.LZ4).doIt();
+      new CompressionBenchmark(Compression.Zstd1).doIt();
    }
 
    private static void writeAndRead( byte[] b, File file ) {
@@ -59,13 +62,17 @@ public class CompressionBenchmark {
 
       for ( int i = 0; i < 2; i++ ) {
          File dumpFile = new File("compression-benchmark.dmp");
-         Dump uncompressed = new Dump<TestBean>(TestBean.class, dumpFile);
+         Dump uncompressed = new Dump<>(TestBean.class, dumpFile);
          measure(uncompressed, "no compression");
          uncompressed.close();
          System.err.println("file size: " + dumpFile.length());
          dumpFile.delete();
-         Dump compressed = new Dump<TestBean>(TestBean.class, dumpFile, _compressor);
-         measure(compressed, "lz4");
+         List<TestBean> beans = new ArrayList<>();
+         for ( int j = 0; j < 10; j++ ) {
+            beans.add(new TestBean());
+         }
+         Dump compressed = new Dump<>(TestBean.class, dumpFile, _compressor, beans);
+         measure(compressed, _compressor.toString());
          compressed.close();
          System.err.println("file size: " + dumpFile.length());
          DumpUtils.deleteDumpFiles(compressed);
@@ -81,10 +88,10 @@ public class CompressionBenchmark {
       System.err.println(comp + " write: " + t);
 
       // reset OS file cache
-      byte[] emptyBytes = new byte[10000000];
-      for ( int i = 0; i < 50; i++ ) {
-         writeAndRead(emptyBytes, new File("compression-benchmark-emptyBytes"));
-      }
+//      byte[] emptyBytes = new byte[10_000_000];
+//      for ( int i = 0; i < 50; i++ ) {
+//         writeAndRead(emptyBytes, new File("compression-benchmark-emptyBytes"));
+//      }
 
       t = new StopWatch();
       for ( TestBean bb : d ) {
