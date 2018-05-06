@@ -46,6 +46,7 @@ import java.lang.annotation.Target;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.Set;
@@ -144,6 +145,17 @@ public interface ExternalizableBean extends Externalizable {
       byte[] bytes = SingleTypeObjectOutputStream.writeSingleInstance(this);
       ExternalizableBean clone = SingleTypeObjectInputStream.readSingleInstance(this.getClass(), bytes);
       return (T)clone;
+   }
+
+   /** Compares this instance to another by externalizing both to bytes and comparing the bytes.
+    *  This means it does a deep equals operation, but ignores all fields/methods that are not
+    *  externalized. */
+   default <T extends Externalizable> boolean deepEquals( T other ) {
+      if ( other == null )
+         return false;
+      byte[] bytes = SingleTypeObjectOutputStream.writeSingleInstance(this);
+      byte[] otherBytes = SingleTypeObjectOutputStream.writeSingleInstance(other);
+      return Arrays.equals(bytes, otherBytes);
    }
 
    @Override
