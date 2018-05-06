@@ -94,7 +94,14 @@ public enum Compression {
       case Zstd10:
       case Zstd15:
       case Zstd22:
-         ZstdDictTrainer trainer = new ZstdDictTrainer(1_000_000, 16_384);
+         /*
+          * from dictBuilder/zdict.h
+          *  Tips: In general, a reasonable dictionary has a size of ~ 100 KB.
+          *        It's possible to select smaller or larger size, just by specifying `dictBufferCapacity`.
+          *        In general, it's recommended to provide a few thousands samples, though this can vary a lot.
+          *        It's recommended that total size of all samples be about ~x100 times the target size of dictionary.
+          */
+         ZstdDictTrainer trainer = new ZstdDictTrainer(10_000_000, 102_400);
          try {
             for ( E e : dictInputProvider ) {
                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
