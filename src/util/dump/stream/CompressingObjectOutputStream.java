@@ -6,15 +6,15 @@ import java.io.OutputStream;
 
 public interface CompressingObjectOutputStream {
 
-   default void compress( OutputStream out, Compression _compressionType, FastByteArrayOutputStream _compressionByteBuffer, byte[] _reusableCompressBytesArray,
+   default void compress( OutputStream out, Compression compressionType, FastByteArrayOutputStream compressionByteBuffer, byte[] reusableCompressBytesArray,
          byte[] _dict ) throws IOException {
-      byte[] bytes = _compressionByteBuffer.getBuf();
-      int bytesLength = _compressionByteBuffer.size();
-      _reusableCompressBytesArray = _compressionType.compress(bytes, bytesLength, _reusableCompressBytesArray, _dict);
-      int compressedLength = _reusableCompressBytesArray.length;
-      if ( _compressionType.isCompressedSizeInFirstFourBytes() ) {
-         compressedLength = (((_reusableCompressBytesArray[0] & 0xff) << 24) + ((_reusableCompressBytesArray[1] & 0xff) << 16)
-            + ((_reusableCompressBytesArray[2] & 0xff) << 8) + ((_reusableCompressBytesArray[3] & 0xff) << 0));
+      byte[] bytes = compressionByteBuffer.getBuf();
+      int bytesLength = compressionByteBuffer.size();
+      reusableCompressBytesArray = compressionType.compress(bytes, bytesLength, reusableCompressBytesArray, _dict);
+      int compressedLength = reusableCompressBytesArray.length;
+      if ( compressionType.isCompressedSizeInFirstFourBytes() ) {
+         compressedLength = (((reusableCompressBytesArray[0] & 0xff) << 24) + ((reusableCompressBytesArray[1] & 0xff) << 16)
+            + ((reusableCompressBytesArray[2] & 0xff) << 8) + (reusableCompressBytesArray[3] & 0xff));
       }
 
       if ( compressedLength + 6 < bytesLength ) {
@@ -27,12 +27,12 @@ public interface CompressingObjectOutputStream {
             out.write((compressedLength >>> 16) & 0xFF);
          }
          out.write((compressedLength >>> 8) & 0xFF);
-         out.write((compressedLength >>> 0) & 0xFF);
+         out.write(compressedLength & 0xFF);
 
-         if ( _compressionType.isCompressedSizeInFirstFourBytes() ) {
-            out.write(_reusableCompressBytesArray, 4, compressedLength);
+         if ( compressionType.isCompressedSizeInFirstFourBytes() ) {
+            out.write(reusableCompressBytesArray, 4, compressedLength);
          } else {
-            out.write(_reusableCompressBytesArray);
+            out.write(reusableCompressBytesArray);
          }
       } else {
          out.write(0);
