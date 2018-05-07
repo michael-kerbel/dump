@@ -32,10 +32,14 @@ public class NumberQueryParser extends QueryParser {
    protected Query newRangeQuery( String field, String part1, String part2, boolean startInclusive, boolean endInclusive ) {
 
       if ( _longFields.contains(field) ) {
-         return LongPoint.newRangeQuery(field, Long.parseLong(part1), Long.parseLong(part2));
+         long lowerValue = part1 == null || "?".equals(part1) ? Long.MIN_VALUE : Long.parseLong(part1);
+         long upperValue = part2 == null || "?".equals(part2) ? Long.MAX_VALUE : Long.parseLong(part2);
+         return LongPoint.newRangeQuery(field, lowerValue, upperValue);
       }
       if ( _doubleFields.contains(field) ) {
-         return DoublePoint.newRangeQuery(field, Double.parseDouble(part1), Double.parseDouble(part2));
+         double lowerValue = part1 == null || "?".equals(part1) ? Double.MIN_VALUE : Double.parseDouble(part1);
+         double upperValue = part2 == null || "?".equals(part2) ? Double.MAX_VALUE : Double.parseDouble(part2);
+         return DoublePoint.newRangeQuery(field, lowerValue, upperValue);
       }
       return super.newRangeQuery(field, part1, part2, startInclusive, endInclusive);
    }

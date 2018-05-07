@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
@@ -17,8 +16,6 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.junit.Test;
 
 import util.dump.sort.TempFileProvider;
-import util.reflection.FieldFieldAccessor;
-import util.reflection.Reflection;
 
 
 public class NumberQueryParserTest {
@@ -44,10 +41,16 @@ public class NumberQueryParserTest {
          List<Bean> beans = search(index, "longField:[0 TO 1]");
          assertSingleResult(beans, firstBean);
 
+         beans = search(index, "longField:[? TO 1]");
+         assertSingleResult(beans, firstBean);
+
          beans = search(index, "longField:[0 TO 3] text:third");
          assertSingleResult(beans, thirdBean);
 
          beans = search(index, "doubleField:[0.25 TO 1]");
+         assertSingleResult(beans, thirdBean);
+
+         beans = search(index, "doubleField:[0.25 TO *]");
          assertSingleResult(beans, thirdBean);
 
          beans = search(index, "longField:2");
