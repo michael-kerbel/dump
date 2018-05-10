@@ -114,6 +114,8 @@ public class SearchIndex<E> extends DumpIndex<E> {
          _taxoWriter.close();
       if ( _searcher != null && _searcher.getIndexReader() != null )
          _searcher.getIndexReader().close();
+      if ( _taxoReader != null )
+         _taxoReader.close();
 
       super.close();
    }
