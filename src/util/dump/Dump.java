@@ -86,8 +86,8 @@ public class Dump<E> implements DumpInput<E> {
 
    public static final DumpAccessFlag[] DEFAULT_MODE   = EnumSet.complementOf(EnumSet.of(DumpAccessFlag.shared))
          .toArray(new DumpAccessFlag[DumpAccessFlag.values().length - 1]);
-   public static final DumpAccessFlag[] SHARED_MODE                      = EnumSet.allOf(DumpAccessFlag.class)
-         .toArray(new DumpAccessFlag[DumpAccessFlag.values().length]);
+   public static final DumpAccessFlag[] SHARED_MODE    = EnumSet.allOf(DumpAccessFlag.class).toArray(new DumpAccessFlag[DumpAccessFlag.values().length]);
+   public static final DumpAccessFlag[] READ_ONLY_MODE = new DumpAccessFlag[] { DumpAccessFlag.indices, DumpAccessFlag.read, DumpAccessFlag.shared };
 
    /** if the number of deleted elements exceeds the value of PRUNE_THRESHOLD, the dump is pruned during construction */
    public static final int PRUNE_THRESHOLD = 25000;
