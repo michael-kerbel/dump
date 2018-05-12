@@ -81,9 +81,10 @@ public class Dump<E> implements DumpInput<E> {
    // TODO add registry for Iterators and close all open iterators in close()
    // TODO [MKR 22.06.2009] improve memory performance of long key indexes by using two maps: int and long.
 
-   public static final int              DEFAULT_CACHE_SIZE               = 10000;
-   public static final int              DEFAULT_SORT_MAX_ITEMS_IN_MEMORY = 10000;
-   public static final DumpAccessFlag[] DEFAULT_MODE                     = EnumSet.complementOf(EnumSet.of(DumpAccessFlag.shared))
+   public static final int DEFAULT_CACHE_SIZE               = 10000;
+   public static final int DEFAULT_SORT_MAX_ITEMS_IN_MEMORY = 10000;
+
+   public static final DumpAccessFlag[] DEFAULT_MODE   = EnumSet.complementOf(EnumSet.of(DumpAccessFlag.shared))
          .toArray(new DumpAccessFlag[DumpAccessFlag.values().length - 1]);
    public static final DumpAccessFlag[] SHARED_MODE                      = EnumSet.allOf(DumpAccessFlag.class)
          .toArray(new DumpAccessFlag[DumpAccessFlag.values().length]);
@@ -91,8 +92,8 @@ public class Dump<E> implements DumpInput<E> {
    /** if the number of deleted elements exceeds the value of PRUNE_THRESHOLD, the dump is pruned during construction */
    public static final int PRUNE_THRESHOLD = 25000;
 
-   private static final Set<String> OPENED_DUMPPATHS = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
-   private static final Set<Dump>   OPENED_DUMPS     = Collections.newSetFromMap(new ConcurrentHashMap<Dump, Boolean>());
+   private static final Set<String> OPENED_DUMPPATHS = Collections.newSetFromMap(new ConcurrentHashMap<>());
+   private static final Set<Dump>   OPENED_DUMPS     = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
 
    static {
@@ -130,13 +131,13 @@ public class Dump<E> implements DumpInput<E> {
    }
 
 
-   final Class                   _beanClass;
-   ObjectStreamProvider          _streamProvider;
-   final File                    _dumpFile;
-   File                          _deletionsFile;
-   File                          _metaFile;
-   File                          _compressionDictionaryFile;
-   Set<DumpIndex<E>>             _indexes                    = new HashSet<>();
+   final Class          _beanClass;
+   ObjectStreamProvider _streamProvider;
+   final File           _dumpFile;
+   File                 _deletionsFile;
+   File                 _metaFile;
+   File                 _compressionDictionaryFile;
+   Set<DumpIndex<E>>    _indexes = new HashSet<>();
 
    DumpWriter<E>                 _writer;
    DumpReader<E>                 _reader;
@@ -144,7 +145,7 @@ public class Dump<E> implements DumpInput<E> {
    RandomAccessFile              _raf;
    ResettableBufferedInputStream _resettableBufferedInputStream;
    DataOutputStream              _deletionsOutput;
-   protected TLongSet            _deletedPositions           = new TLongHashSet();
+   protected TLongSet            _deletedPositions = new TLongHashSet();
 
    /** The keys are positions in the dump file and the values are the bytes of the serialized item stored there.
     * Appended to these bytes is a space efficient encoding (see <code>longToBytes(long)</code>) of the next
@@ -153,31 +154,33 @@ public class Dump<E> implements DumpInput<E> {
    int                           _cacheSize;
    ObjectInput                   _cacheObjectInput;
    ResettableBufferedInputStream _cacheByteInput;
-   Map<Long, byte[]>             _singleItemCache            = new HashMap<>();
-   AtomicInteger                 _cacheLookups               = new AtomicInteger(0);
-   AtomicInteger                 _cacheHits                  = new AtomicInteger(0);
+   Map<Long, byte[]>             _singleItemCache = new HashMap<>();
+   AtomicInteger                 _cacheLookups    = new AtomicInteger(0);
+   AtomicInteger                 _cacheHits       = new AtomicInteger(0);
 
-   ByteArrayOutputStream         _updateByteOutput;
-   ObjectOutput                  _updateOut;
-   RandomAccessFile              _updateRaf;
-   long                          _updateRafPosition;
+   ByteArrayOutputStream _updateByteOutput;
+   ObjectOutput          _updateOut;
+   RandomAccessFile      _updateRaf;
+   long                  _updateRafPosition;
 
-   boolean                       _isClosed;
+   boolean _isClosed;
 
-   ThreadLocal<Long>             _nextItemPos                = new LongThreadLocal();
-   ThreadLocal<Long>             _lastItemPos                = new LongThreadLocal();
+   ThreadLocal<Long> _nextItemPos = new LongThreadLocal();
+   ThreadLocal<Long> _lastItemPos = new LongThreadLocal();
 
    /** incremented on each write operation */
-   long                          _sequence                   = (long)(Math.random() * 1000000);
+   long _sequence = (long)(Math.random() * 1000000);
 
    final EnumSet<DumpAccessFlag> _mode;
 
-   RandomAccessFile              _metaRaf;
-   FileLock                      _dumpLock;
+   RandomAccessFile _metaRaf;
+   FileLock         _dumpLock;
 
-   boolean                       _willBeClosedDuringShutdown = false;
+   boolean _willBeClosedDuringShutdown = false;
 
-   String                        _instantiationDetails;
+   String _instantiationDetails;
+
+   Set<DeletionAwareDumpReader> _allOpenedDumpReaders = new HashSet<>();
 
 
    /**
@@ -203,7 +206,6 @@ public class Dump<E> implements DumpInput<E> {
    /**
     * same as {@link #Dump(Class, File)} but allows to set the compression algorithm to use.
     * @param compression the compression to use for the SingleTypeObjectStreamProvider, i.e. each bean is stored compressed using this algorithm
-    * @param
     */
    public Dump( Class<E> beanClass, File dumpFile, Compression compression, Iterable<E> dictInputProvider ) {
       this(beanClass, new SingleTypeObjectStreamProvider(beanClass, compression, dictInputProvider,
@@ -387,6 +389,9 @@ public class Dump<E> implements DumpInput<E> {
       }
       for ( DumpIndex index : new ArrayList<>(_indexes) ) {
          index.close();
+      }
+      for ( DeletionAwareDumpReader openedDumpReader : _allOpenedDumpReaders ) {
+         openedDumpReader._primitiveInputStream.close(); // these iterators will fail hard...
       }
       OPENED_DUMPPATHS.remove(_dumpFile.getPath());
       OPENED_DUMPS.remove(this);
@@ -836,6 +841,7 @@ public class Dump<E> implements DumpInput<E> {
       super.finalize();
    }
 
+   @SuppressWarnings("ResultOfMethodCallIgnored")
    protected void prune() throws IOException {
       File prunedDumpFile = new File(_dumpFile.getAbsolutePath() + ".pruned");
       try {
@@ -876,18 +882,14 @@ public class Dump<E> implements DumpInput<E> {
       }
    }
 
-   /**
-    * @return false if the dump wasn't locked
-    */
-   protected boolean releaseFileLock() {
+   protected void releaseFileLock() {
       synchronized ( this ) {
          try {
             if ( _dumpLock == null ) {
-               return false;
+               return;
             }
             _dumpLock.release();
             _dumpLock = null;
-            return true;
          }
          catch ( Exception argh ) {
             throw new RuntimeException("unable to unlock dump file " + _metaFile, argh);
@@ -929,6 +931,7 @@ public class Dump<E> implements DumpInput<E> {
       }
    }
 
+   @SuppressWarnings("InfiniteLoopStatement")
    void readDeletions() throws IOException {
       if ( _deletionsFile.exists() ) {
          if ( _deletionsFile.length() % 8 != 0 ) {
@@ -936,11 +939,9 @@ public class Dump<E> implements DumpInput<E> {
          }
 
          long dumpFileLength = _dumpFile.length();
-         DataInputStream dataInputStream = null;
-         try {
-            dataInputStream = new DataInputStream(new BufferedInputStream(new FileInputStream(_deletionsFile), DumpReader.DEFAULT_BUFFER_SIZE));
+         try (DataInputStream in = new DataInputStream(new BufferedInputStream(new FileInputStream(_deletionsFile), DumpReader.DEFAULT_BUFFER_SIZE))) {
             while ( true ) { // read until EOF
-               long pos = dataInputStream.readLong();
+               long pos = in.readLong();
                if ( pos < 0 || pos >= dumpFileLength ) {
                   throw new RuntimeException("Dump corrupted: " + _deletionsFile + " contains illegal data.");
                }
@@ -949,11 +950,6 @@ public class Dump<E> implements DumpInput<E> {
          }
          catch ( EOFException argh ) {
             // ignore
-         }
-         finally {
-            if ( dataInputStream != null ) {
-               dataInputStream.close();
-            }
          }
       }
    }
@@ -1318,7 +1314,7 @@ public class Dump<E> implements DumpInput<E> {
        *              or an I/O error occurs.
        */
       @Override
-      public/*synchronized*/int read( @Nullable byte b[], int off, int len ) throws IOException {
+      public/*synchronized*/int read( @Nonnull byte b[], int off, int len ) throws IOException {
          // we don't share instances of this class or synchronize access on a different level, so this method is not synchronized
          getBufIfOpen(); // Check for closed stream
          if ( (off | len | (off + len) | (b.length - (off + len))) < 0 ) {
@@ -1469,7 +1465,6 @@ public class Dump<E> implements DumpInput<E> {
       ResettableBufferedInputStream _positionAwareInputStream;
       long                          _lastPos;
       long                          _maxPos;
-      FileInputStream               _in;
 
 
       public DeletionAwareDumpReader( File dumpFile, ObjectStreamProvider streamProvider ) throws IOException {
@@ -1484,6 +1479,7 @@ public class Dump<E> implements DumpInput<E> {
          _positionAwareInputStream = (ResettableBufferedInputStream)_primitiveInputStream;
          _positionAwareInputStream._lastElementBytes = new byte[1024];
          _maxPos = maxPos;
+         _allOpenedDumpReaders.add(this);
       }
 
       @Override
@@ -1494,8 +1490,8 @@ public class Dump<E> implements DumpInput<E> {
       @Override
       public boolean hasNext() {
          synchronized ( Dump.this ) {
-            long pos = -1;
-            boolean hasNext = false;
+            long pos;
+            boolean hasNext;
             do {
                _positionAwareInputStream._lastElementBytesLength = 0;
                pos = _positionAwareInputStream._rafPos;
@@ -1511,7 +1507,7 @@ public class Dump<E> implements DumpInput<E> {
                byte[] lastElementBytes = new byte[_positionAwareInputStream._lastElementBytesLength + nextItemPos.length];
                System.arraycopy(_positionAwareInputStream._lastElementBytes, 0, lastElementBytes, 0, _positionAwareInputStream._lastElementBytesLength);
                appendNextItemPos(lastElementBytes, nextItemPos);
-               _cache.put(Long.valueOf(pos), lastElementBytes); // ugly boxing of pos necessary here, since _cache is a regular Map - the cost of beauty is ugliness
+               _cache.put(pos, lastElementBytes); // ugly boxing of pos happens here, since _cache is a regular Map - the cost of beauty is ugliness
             }
             if ( !hasNext ) {
                super.closeStreams(true);
@@ -1532,6 +1528,12 @@ public class Dump<E> implements DumpInput<E> {
       public E next() {
          _lastItemPos.set(_lastPos);
          return super.next();
+      }
+
+      @Override
+      void closeStreams( boolean isEOF ) {
+         super.closeStreams(isEOF);
+         _allOpenedDumpReaders.remove(this);
       }
    }
 
@@ -1558,13 +1560,13 @@ public class Dump<E> implements DumpInput<E> {
       }
 
       @Override
-      public void write( byte[] b ) throws IOException {
+      public void write( @Nonnull byte[] b ) throws IOException {
          _out.write(b);
          _n += b.length;
       }
 
       @Override
-      public void write( byte[] b, int off, int len ) throws IOException {
+      public void write( @Nonnull byte[] b, int off, int len ) throws IOException {
          _out.write(b, off, len);
          _n += len;
       }
