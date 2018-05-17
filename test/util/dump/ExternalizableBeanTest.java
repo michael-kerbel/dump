@@ -1426,11 +1426,11 @@ public class ExternalizableBeanTest {
 
       // the member vars get initialized randomly only if the field is public - a limitation of this testcase
 
-      @externalize(1)
+      @externalize((byte)201)
       public int     _int;
-      @externalize(2)
+      @externalize((byte)202)
       public boolean _booleanPrimitive;
-      @externalize(3)
+      @externalize((byte)203)
       public byte    _bytePrimitive;
    }
 
