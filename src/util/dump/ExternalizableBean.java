@@ -171,19 +171,19 @@ public interface ExternalizableBean extends Externalizable {
          Class[] defaultTypes = config._defaultTypes;
          int j = 0;
          for ( int i = 0; i < fieldNumberToRead; i++ ) {
-            byte fieldIndex = in.readByte();
+            int fieldIndex = in.readByte() & 0xff;
             byte fieldTypeId = in.readByte();
 
             /* We expect fields to be stored in ascending fieldIndex order.
              * That's why we can find the appropriate fieldIndex in our sorted fieldIndexes array by skipping. */
-            while ( fieldIndexes[j] < fieldIndex && j < fieldIndexes.length - 1 ) {
+            while ( (fieldIndexes[j] & 0xff) < fieldIndex && j < fieldIndexes.length - 1 ) {
                j++;
             }
 
             FieldAccessor f = null;
             FieldType ft = null;
             Class defaultType = null;
-            if ( fieldIndexes[j] == fieldIndex ) {
+            if ( (fieldIndexes[j] & 0xff) == fieldIndex ) {
                f = fieldAccessors[j];
                ft = fieldTypes[j];
                defaultType = defaultTypes[j];
