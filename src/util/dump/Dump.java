@@ -587,6 +587,17 @@ public class Dump<E> implements DumpInput<E> {
       return _dumpFile;
    }
 
+   public @Nonnull DumpReader<E> getDumpReader() {
+      assertOpen();
+      try {
+         flush();
+         return new DeletionAwareDumpReader(_dumpFile, _streamProvider);
+      }
+      catch ( IOException argh ) {
+         throw new RuntimeException("Failed to create a DumpReader.", argh);
+      }
+   }
+
    /**
     * Always returns the number of bytes contained in the dump, even if a flush operation is still missing
     * and the file does not contain all data yet. This method has no IO cost.

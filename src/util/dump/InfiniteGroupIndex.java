@@ -615,9 +615,6 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
             // the existing dump is already sorted, so this is an optimization to avoid re-externalization and re-sorting of the existing objects
             sorter.addSortedSegment(_intKeyDump);
 
-            // close early, because InfiniteSorter will want to delete this segment as soon as it is finished with merging it
-            _intKeyDump.close(); // TODO synchronize 
-
             _overflowIndex._lookupInt.forEachEntry(new TIntObjectProcedure<Positions>() {
 
                @Override
@@ -637,6 +634,7 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
             Dump<IntKeyPosition> intKeyDump = new Dump<>(IntKeyPosition.class, tmpLookupFile);
             intKeyDump.addAll(sorter);
             intKeyDump.close();
+            _intKeyDump.close();
             renameTmpLookupFile(tmpLookupFileName, tmpLookupFile);
             _intKeyDump = new Dump<>(IntKeyPosition.class, getLookupFile());
          } else if ( _fieldIsLong ) {
@@ -644,9 +642,6 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
                new SingleTypeObjectStreamProvider<>(LongKeyPosition.class), Comparator.naturalOrder());
             // the existing dump is already sorted, so this is an optimisation to avoid re-externalization and re-sorting of the existing objects
             sorter.addSortedSegment(_longKeyDump);
-
-            // close early, because InfiniteSorter will want to delete this segment as soon as it is finished with merging it
-            _longKeyDump.close(); // TODO synchronize
 
             _overflowIndex._lookupLong.forEachEntry(new TLongObjectProcedure<Positions>() {
 
@@ -668,6 +663,7 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
             Dump<LongKeyPosition> longKeyDump = new Dump<>(LongKeyPosition.class, tmpLookupFile);
             longKeyDump.addAll(sorter);
             longKeyDump.close();
+            _longKeyDump.close();
             renameTmpLookupFile(tmpLookupFileName, tmpLookupFile);
             _longKeyDump = new Dump<>(LongKeyPosition.class, getLookupFile());
          } else {
@@ -675,9 +671,6 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
                new SingleTypeObjectStreamProvider<>(IntKeyPosition.class), Comparator.naturalOrder());
             // the existing dump is already sorted, so this is an optimisation to avoid re-externalization and re-sorting of the existing objects
             sorter.addSortedSegment(_intKeyDump);
-
-            // close early, because InfiniteSorter will want to delete this segment as soon as it is finished with merging it
-            _intKeyDump.close(); // TODO synchronize 
 
             for ( Entry<Object, Positions> e : _overflowIndex._lookupObject.entrySet() ) {
                Object objectKey = e.getKey();
@@ -698,6 +691,7 @@ public class InfiniteGroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex
             Dump<IntKeyPosition> intKeyDump = new Dump<>(IntKeyPosition.class, tmpLookupFile);
             intKeyDump.addAll(sorter);
             intKeyDump.close();
+            _intKeyDump.close();
             renameTmpLookupFile(tmpLookupFileName, tmpLookupFile);
             _intKeyDump = new Dump<>(IntKeyPosition.class, getLookupFile());
          }
