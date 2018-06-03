@@ -70,6 +70,7 @@ public class InfiniteSorter<E> implements Iterable<E> {
    private int                  _totalBufferedElements = 0;                  // *Total* number of elements buffered
    private List<E>              _memoryBuffer          = new ArrayList<>();  // memory elements buffer
    private List<File>           _segmentFiles          = null;
+   private List<Dump<E>>        _segmentDumps          = null;
    private ObjectStreamProvider _objectStreamProvider  = null;
    private int                  _maxElementsInMemory;
    // the buffer size of the sorted segmentFiles during merging
@@ -122,7 +123,13 @@ public class InfiniteSorter<E> implements Iterable<E> {
    }
 
    public void addSortedSegment( Dump<E> dump ) {
-      addSortedSegment(dump.getDumpFile());
+      if ( _segmentDumps == null ) {
+         _segmentDumps = new ArrayList<>();
+      }
+      if ( dump == null || dump.isClosed() ) {
+         throw new IllegalArgumentException("dump argument not valid: " + dump);
+      }
+      _segmentDumps.add(dump);
    }
 
    public void addSortedSegment( File dumpFile ) {
@@ -167,7 +174,7 @@ public class InfiniteSorter<E> implements Iterable<E> {
 
       DumpInput<E> finalStream;
 
-      if ( _segmentFiles == null ) {
+      if ( _segmentFiles == null && _segmentDumps == null ) {
          // all buffered elements are still in memory, no swapping needed
          _memoryBuffer.sort(_comparator);
          finalStream = new ListInput<>(_memoryBuffer);
@@ -236,6 +243,10 @@ public class InfiniteSorter<E> implements Iterable<E> {
       for ( File f : _segmentFiles ) {
          streamsbuffer.add(new DumpReader<>(f, true, _bufferSize, _objectStreamProvider));
       }
+      if ( _segmentDumps != null )
+         for ( Dump<E> d : _segmentDumps ) {
+            streamsbuffer.add(d.getDumpReader());
+         }
       return streamsbuffer;
    }
 
@@ -257,6 +268,7 @@ public class InfiniteSorter<E> implements Iterable<E> {
    private DumpInput<E> mergeDumps() throws Exception {
       List<DumpInput<E>> streamsbuffer = getSegments();
       _segmentFiles = null;
+      _segmentDumps = null;
       return new SortedInputMerger<>(streamsbuffer, _comparator);
 
    }
