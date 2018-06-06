@@ -1,5 +1,8 @@
 package util.dump;
 
+import javax.annotation.Nonnull;
+
+import java.io.File;
 import java.io.IOException;
 
 import junit.framework.Assert;
@@ -15,7 +18,7 @@ public class InfiniteSorterTest {
 
    @Test
    public void testSorterInMemory() throws IOException {
-      InfiniteSorter<Bean> infiniteSorter = new InfiniteSorter<Bean>(1000);
+      InfiniteSorter<Bean> infiniteSorter = new InfiniteSorter<>(1000);
       for ( int i = 100; i > 0; i-- ) {
          Bean bean = new Bean(i);
          infiniteSorter.add(bean);
@@ -32,10 +35,10 @@ public class InfiniteSorterTest {
 
    @Test
    public void testSorterOnDisk() throws IOException {
-      ObjectStreamProvider p = new SingleTypeObjectStreamProvider<Bean>(Bean.class);
-      InfiniteSorter<Bean> infiniteSorter = new InfiniteSorter<Bean>(1000000);
+      ObjectStreamProvider p = new SingleTypeObjectStreamProvider<>(Bean.class);
+      InfiniteSorter<Bean> infiniteSorter = new InfiniteSorter<>(1_000_000);
       infiniteSorter.setObjectStreamProvider(p);
-      for ( int i = 10000000; i > 0; i-- ) {
+      for ( int i = 10_000_000; i > 0; i-- ) {
          infiniteSorter.add(new Bean(i));
       }
 
@@ -46,6 +49,32 @@ public class InfiniteSorterTest {
       }
 
       Assert.assertEquals(n, 10000000);
+   }
+
+   @Test
+   public void testSorterWithSortedSegment() throws IOException {
+      ObjectStreamProvider p = new SingleTypeObjectStreamProvider<>(Bean.class);
+      InfiniteSorter<Bean> infiniteSorter = new InfiniteSorter<>(1_000_000);
+      infiniteSorter.setObjectStreamProvider(p);
+      for ( int i = 10_000_000; i > 0; i-- ) {
+         infiniteSorter.add(new Bean(i));
+      }
+      File dumpFile = File.createTempFile("InfiniteSorterTest", ".dmp");
+      try(Dump<Bean> sortedDump = new Dump<>(Bean.class, dumpFile)) {
+         DumpUtils.deleteDumpFilesOnExit(sortedDump);
+         for ( int i = 10_000_001; i <= 11_000_000; i ++ ) {
+            sortedDump.add(new Bean(i));
+         }
+         infiniteSorter.addSortedSegment(sortedDump);
+
+         int n = 0;
+         for ( Bean bean : infiniteSorter ) {
+            n++;
+            Assert.assertEquals(n, bean._id);
+         }
+
+         Assert.assertEquals( 11_000_000, n);
+      }
    }
 
 
@@ -62,8 +91,8 @@ public class InfiniteSorterTest {
       }
 
       @Override
-      public int compareTo( Bean o ) {
-         return (_id < o._id ? -1 : (_id == o._id ? 0 : 1));
+      public int compareTo( @Nonnull Bean o ) {
+         return (Long.compare(_id, o._id));
       }
    }
 
