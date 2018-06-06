@@ -240,9 +240,10 @@ public class InfiniteSorter<E> implements Iterable<E> {
    private List<DumpInput<E>> getSegments() throws IOException {
       List<DumpInput<E>> streamsbuffer = new ArrayList<>();
 
-      for ( File f : _segmentFiles ) {
-         streamsbuffer.add(new DumpReader<>(f, true, _bufferSize, _objectStreamProvider));
-      }
+      if ( _segmentFiles != null )
+         for ( File f : _segmentFiles ) {
+            streamsbuffer.add(new DumpReader<>(f, true, _bufferSize, _objectStreamProvider));
+         }
       if ( _segmentDumps != null )
          for ( Dump<E> d : _segmentDumps ) {
             streamsbuffer.add(d.getDumpReader());
