@@ -200,7 +200,8 @@ public class Dump<E> implements DumpInput<E> {
     * @param compression the compression to use for the SingleTypeObjectStreamProvider, i.e. each bean is stored compressed using this algorithm
     */
    public Dump( Class<E> beanClass, File dumpFile, Compression compression ) {
-      this(beanClass, new SingleTypeObjectStreamProvider(beanClass, compression), dumpFile, DEFAULT_CACHE_SIZE, DEFAULT_MODE);
+      this(beanClass, new SingleTypeObjectStreamProvider(beanClass, compression, null,
+         readDictionaryFromMeta(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, DEFAULT_MODE);
    }
 
    /**
