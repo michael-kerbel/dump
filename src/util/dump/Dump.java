@@ -1122,7 +1122,7 @@ public class Dump<E> implements DumpInput<E> {
 
    static class ResettableBufferedInputStream extends InputStream {
 
-      private static int defaultBufferSize = 256 * 1024; // this is enough, see http://nadeausoftware.com/articles/2008/02/java_tip_how_read_files_quickly
+      private static int defaultBufferSize = 1024 * 1024; // this was determined by experiments on a HD
 
       /**
        * The internal buffer array where the data is stored. When necessary,
