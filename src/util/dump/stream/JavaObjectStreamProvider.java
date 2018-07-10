@@ -1,6 +1,8 @@
 package util.dump.stream;
 
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInput;
@@ -26,6 +28,30 @@ import java.util.zip.GZIPInputStream;
  */
 public class JavaObjectStreamProvider implements ObjectStreamProvider {
 
+   public static <T> T readSingleInstance( byte[] bytes ) {
+      ByteArrayInputStream bytesInput = new ByteArrayInputStream(bytes);
+
+      try (ObjectInput in = new JavaObjectStreamProvider().createObjectInput(bytesInput)) {
+         //noinspection unchecked
+         return (T)in.readObject();
+      }
+      catch ( Exception argh ) {
+         throw new RuntimeException(argh);
+      }
+   }
+
+   public static byte[] writeSingleInstance( Object e ) {
+      ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+      try (ObjectOutput out = new JavaObjectStreamProvider().createObjectOutput(bytes)) {
+         out.writeObject(e);
+      }
+      catch ( IOException argh ) {
+         throw new RuntimeException(argh);
+      }
+
+      return bytes.toByteArray();
+   }
    private final int _compression;
 
 
