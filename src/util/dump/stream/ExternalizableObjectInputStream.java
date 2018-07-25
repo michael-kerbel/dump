@@ -67,7 +67,8 @@ public class ExternalizableObjectInputStream extends DataInputStream implements 
    @Override
    public void close() throws IOException {
       super.close();
-      _objectInputStream.close();
+      if ( _objectInputStream != null )
+         _objectInputStream.close();
    }
 
    @Override
