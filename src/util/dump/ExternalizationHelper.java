@@ -11,6 +11,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -562,7 +563,8 @@ class ExternalizationHelper {
       Enum(Enum.class, 43, true), //
       EnumSet(EnumSet.class, 44, true), //
       Padding(Thread.class, 45), //
-      BigDecimal(java.math.BigDecimal.class, 46), //
+      BigDecimal(BigDecimal.class, 46), //
+      LocalDateTime(LocalDateTime.class, 47), //
       // TODO add Map (beware of Collections.*Map or Treemaps using custom Comparators!)
       ;
 

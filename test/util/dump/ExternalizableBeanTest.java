@@ -19,6 +19,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -181,6 +183,17 @@ public class ExternalizableBeanTest {
             boolean isNotNull = r.nextBoolean();
             if ( isNotNull ) {
                Date s = new Date(r.nextLong());
+               f.set(t, s);
+            } else {
+               f.set(t, null);
+            }
+         } else if ( type == LocalDateTime.class ) {
+            boolean isNotNull = r.nextBoolean();
+            if ( isNotNull ) {
+               long time = r.nextLong();
+               time = Math.max(time, -31556889801248460L);
+               time = Math.min(time, 31556889801248460L);
+               LocalDateTime s = LocalDateTime.ofEpochSecond(time, Math.min(Math.abs(r.nextInt()),999999999) , ZoneOffset.UTC);
                f.set(t, s);
             } else {
                f.set(t, null);
@@ -873,6 +886,8 @@ public class ExternalizableBeanTest {
       public Set<String>          _setOfStrings;
       @externalize(38)
       public BigDecimal           _bigDecimal;
+      @externalize(39)
+      public LocalDateTime           _localDateTime;
 
       public int _i; // this member var gets initialized randomly only if the field is public - a limitation of this testcase
 
