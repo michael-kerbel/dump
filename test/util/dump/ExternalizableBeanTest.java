@@ -19,8 +19,11 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -193,7 +196,19 @@ public class ExternalizableBeanTest {
                long time = r.nextLong();
                time = Math.max(time, -31556889801248460L);
                time = Math.min(time, 31556889801248460L);
-               LocalDateTime s = LocalDateTime.ofEpochSecond(time, Math.min(Math.abs(r.nextInt()),999999999) , ZoneOffset.UTC);
+               LocalDateTime s = LocalDateTime.ofEpochSecond(time, Math.min(Math.abs(r.nextInt()), 999999999), ZoneOffset.UTC);
+               f.set(t, s);
+            } else {
+               f.set(t, null);
+            }
+         } else if ( type == ZonedDateTime.class ) {
+            boolean isNotNull = r.nextBoolean();
+            if ( isNotNull ) {
+               long time = r.nextLong();
+               time = Math.max(time, -31556889801248460L);
+               time = Math.min(time, 31556889801248460L);
+               ZoneId zone = ZoneId.of(ZoneId.getAvailableZoneIds().toArray(new String[0])[r.nextInt(ZoneId.getAvailableZoneIds().size())]);
+               ZonedDateTime s = ZonedDateTime.ofInstant(Instant.ofEpochMilli(time), zone);
                f.set(t, s);
             } else {
                f.set(t, null);
@@ -887,7 +902,9 @@ public class ExternalizableBeanTest {
       @externalize(38)
       public BigDecimal           _bigDecimal;
       @externalize(39)
-      public LocalDateTime           _localDateTime;
+      public LocalDateTime        _localDateTime;
+      @externalize(40)
+      public ZonedDateTime        _zonedDateTime;
 
       public int _i; // this member var gets initialized randomly only if the field is public - a limitation of this testcase
 

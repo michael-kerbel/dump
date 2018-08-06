@@ -1,5 +1,6 @@
 package util.dump;
 
+import static java.time.ZoneId.of;
 import static java.time.ZoneOffset.UTC;
 import static util.dump.ExternalizationHelper.CLASS_CHANGED_INCOMPATIBLY;
 import static util.dump.ExternalizationHelper.STREAM_CACHE;
@@ -47,7 +48,11 @@ import java.lang.annotation.Target;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.temporal.TemporalField;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.EnumSet;
@@ -418,6 +423,19 @@ public interface ExternalizableBean extends Externalizable {
                   long t = in.readLong();
                   int ns = in.readInt();
                   d = LocalDateTime.ofEpochSecond(t, ns, UTC);
+               }
+               if ( f != null ) {
+                  f.set(this, d);
+               }
+               break;
+            }
+            case ZonedDateTime:{
+               ZonedDateTime d = null;
+               boolean isNotNull = in.readBoolean();
+               if ( isNotNull ) {
+                  long t = in.readLong();
+                  String zoneId = in.readUTF();
+                  d = ZonedDateTime.ofInstant(Instant.ofEpochMilli(t), of(zoneId));
                }
                if ( f != null ) {
                   f.set(this, d);
@@ -918,6 +936,15 @@ public interface ExternalizableBean extends Externalizable {
                if ( d != null ) {
                   out.writeLong(d.toEpochSecond(UTC));
                   out.writeInt(d.getNano());
+               }
+               break;
+            }
+            case ZonedDateTime: {
+               ZonedDateTime d = (ZonedDateTime)f.get(this);
+               out.writeBoolean(d != null);
+               if ( d != null ) {
+                  out.writeLong(d.toInstant().toEpochMilli());
+                  out.writeUTF(d.getZone().getId());
                }
                break;
             }
