@@ -1,5 +1,6 @@
 package util.dump;
 
+import static java.time.ZoneOffset.UTC;
 import static util.dump.ExternalizationHelper.CLASS_CHANGED_INCOMPATIBLY;
 import static util.dump.ExternalizationHelper.STREAM_CACHE;
 import static util.dump.ExternalizationHelper.forName;
@@ -46,6 +47,7 @@ import java.lang.annotation.Target;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.EnumSet;
@@ -403,6 +405,19 @@ public interface ExternalizableBean extends Externalizable {
                   byte[] bytes = readByteArray(in);
                   int scale = in.readInt();
                   d = new BigDecimal(new BigInteger(bytes), scale);
+               }
+               if ( f != null ) {
+                  f.set(this, d);
+               }
+               break;
+            }
+            case LocalDateTime:{
+               LocalDateTime d = null;
+               boolean isNotNull = in.readBoolean();
+               if ( isNotNull ) {
+                  long t = in.readLong();
+                  int ns = in.readInt();
+                  d = LocalDateTime.ofEpochSecond(t, ns, UTC);
                }
                if ( f != null ) {
                   f.set(this, d);
@@ -894,6 +909,15 @@ public interface ExternalizableBean extends Externalizable {
                   byte[] bytes = d.unscaledValue().toByteArray();
                   writeByteArray(bytes, out);
                   out.writeInt(d.scale());
+               }
+               break;
+            }
+            case LocalDateTime: {
+               LocalDateTime d = (LocalDateTime)f.get(this);
+               out.writeBoolean(d != null);
+               if ( d != null ) {
+                  out.writeLong(d.toEpochSecond(UTC));
+                  out.writeInt(d.getNano());
                }
                break;
             }
