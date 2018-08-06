@@ -12,6 +12,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -565,6 +566,7 @@ class ExternalizationHelper {
       Padding(Thread.class, 45), //
       BigDecimal(BigDecimal.class, 46), //
       LocalDateTime(LocalDateTime.class, 47), //
+      ZonedDateTime(ZonedDateTime.class, 48), //
       // TODO add Map (beware of Collections.*Map or Treemaps using custom Comparators!)
       ;
 
