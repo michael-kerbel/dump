@@ -1485,6 +1485,7 @@ public class Dump<E> implements DumpInput<E> {
 
       private DeletionAwareDumpReader( File dumpFile, ObjectStreamProvider streamProvider, long maxPos ) throws IOException {
          super(new ResettableBufferedInputStream(new FileInputStream(_dumpFile), 0, false), 0, streamProvider);
+         _sourceFile=dumpFile;
          if ( !_mode.contains(DumpAccessFlag.read) ) {
             throw new AccessControlException("Read operation not allowed with current modes.");
          }
