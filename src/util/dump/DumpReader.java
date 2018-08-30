@@ -27,13 +27,13 @@ public class DumpReader<E> implements DumpInput<E>, Iterator<E> {
    // default configuration for the buffered output stream
    public static final int DEFAULT_BUFFER_SIZE = 65536;
 
-   BufferedInputStream     _inputbuffer;
-   InputStream             _primitiveInputStream;
-   ObjectInput             _objectInputStream;
-   E                       _nextObject         = (E)null;
-   boolean                 _nextPrepared       = false;
-   File                    _sourceFile         = null;
-   boolean                 _deleteFileOnEOF    = false;
+   BufferedInputStream _inputbuffer;
+   InputStream         _primitiveInputStream;
+   ObjectInput         _objectInputStream;
+   E                   _nextObject      = (E)null;
+   boolean             _nextPrepared    = false;
+   File                _sourceFile      = null;
+   boolean             _deleteFileOnEOF = false;
 
 
    /**
@@ -119,6 +119,10 @@ public class DumpReader<E> implements DumpInput<E>, Iterator<E> {
    @Override
    public void close() {
       closeStreams(false);
+   }
+
+   public File getSourceFile() {
+      return _sourceFile;
    }
 
    @Override
