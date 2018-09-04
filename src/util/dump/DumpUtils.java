@@ -1,9 +1,5 @@
 package util.dump;
 
-import gnu.trove.map.TIntIntMap;
-import gnu.trove.map.hash.TIntIntHashMap;
-import gnu.trove.procedure.TIntIntProcedure;
-
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -14,47 +10,48 @@ import java.util.Iterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import gnu.trove.map.TIntIntMap;
+import gnu.trove.map.hash.TIntIntHashMap;
+
 
 public class DumpUtils {
 
-   private static final Logger        LOG                        = LoggerFactory.getLogger(DumpUtils.class);
+   private static final Logger LOG = LoggerFactory.getLogger(DumpUtils.class);
 
-   private static ThreadLocal<byte[]> _writeUTFReusableByteArray = new ThreadLocal<byte[]>() {
-
-                                                                    @Override
-                                                                    protected byte[] initialValue() {
-                                                                       return new byte[2048];
-                                                                    }
-                                                                 };
-   private static ThreadLocal<byte[]> _readUTFReusableByteArray  = new ThreadLocal<byte[]>() {
-
-                                                                    @Override
-                                                                    protected byte[] initialValue() {
-                                                                       return new byte[2048];
-                                                                    }
-                                                                 };
-   private static ThreadLocal<char[]> _readUTFReusableCharArray  = new ThreadLocal<char[]>() {
-
-                                                                    @Override
-                                                                    protected char[] initialValue() {
-                                                                       return new char[1024];
-                                                                    }
-                                                                 };
+   private static ThreadLocal<byte[]> _writeUTFReusableByteArray = ThreadLocal.withInitial(() -> new byte[2048]);
+   private static ThreadLocal<byte[]> _readUTFReusableByteArray  = ThreadLocal.withInitial(() -> new byte[2048]);
+   private static ThreadLocal<char[]> _readUTFReusableCharArray  = ThreadLocal.withInitial(() -> new char[1024]);
 
 
    /**
     * Calls <code>dump.add(e)</code> and catches any IOException.
     * @return true if the add operation did not throw any IOException, false otherwise
     */
-   public static final <E> boolean addSilently( Dump<E> dump, E e ) {
+   public static <E> boolean addSilently( Dump<E> dump, E e ) {
       if ( dump != null ) {
          try {
             dump.add(e);
             return true;
          }
-         catch ( IOException ex ) {}
+         catch ( IOException ex ) {
+            // do nothing
+         }
       }
       return false;
+   }
+
+   /**
+    * Calls <code>dump.add(e)</code> and wraps any IOException in a RuntimeException.
+    * */
+   public static <E> void addUnchecked( Dump<E> dump, E e ) {
+      if ( dump != null ) {
+         try {
+            dump.add(e);
+         }
+         catch ( IOException ex ) {
+            throw new RuntimeException(ex);
+         }
+      }
    }
 
    /**
@@ -64,7 +61,7 @@ public class DumpUtils {
     * is no checksum mechanism in the dump (yet).
     * @throws RuntimeException if the cleanup fails
     */
-   public static final <E> void cleanup( final Dump<E> source, final Dump<E> destination ) {
+   public static <E> void cleanup( final Dump<E> source, final Dump<E> destination ) {
       try {
          source.flush();
          Iterator<E> iterator = source.new DeletionAwareDumpReader(source._dumpFile, source._streamProvider) {
@@ -109,21 +106,17 @@ public class DumpUtils {
             @Override
             void closeStreams( boolean isEOF ) {
                // don't
-            };
+            }
 
             private long getMostFrequentElementSize() {
                final int[] maxNumber = { 0 };
                final int[] mostFrequentSize = { 1 };
-               _elementSizes.forEachEntry(new TIntIntProcedure() {
-
-                  @Override
-                  public boolean execute( int size, int number ) {
-                     if ( number > maxNumber[0] ) {
-                        mostFrequentSize[0] = size;
-                        maxNumber[0] = number;
-                     }
-                     return true;
+               _elementSizes.forEachEntry(( size, number ) -> {
+                  if ( number > maxNumber[0] ) {
+                     mostFrequentSize[0] = size;
+                     maxNumber[0] = number;
                   }
+                  return true;
                });
                return Math.max(1, mostFrequentSize[0]);
             };
@@ -142,7 +135,7 @@ public class DumpUtils {
    /**
     * Calls <code>dump.close()</code> and catches any IOException.
     */
-   public static final void closeSilently( Dump<?> dump ) {
+   public static void closeSilently( Dump<?> dump ) {
       if ( dump != null ) {
          try {
             dump.close();
@@ -161,7 +154,7 @@ public class DumpUtils {
     * @throws IllegalArgumentException if the dump wasn't closed before
     * @throws IOException if the deletion failed
     */
-   public static final void deleteDumpFiles( Dump<?> dump ) throws IOException {
+   public static void deleteDumpFiles( Dump<?> dump ) throws IOException {
       if ( !dump._isClosed ) {
          throw new IllegalArgumentException("dump wasn't closed");
       }
@@ -188,7 +181,7 @@ public class DumpUtils {
    /**
     * delete all files that belong to the dump on exit ({@link java.io.File#deleteOnExit()})
     */
-   public static final void deleteDumpFilesOnExit( Dump<?> dump ) {
+   public static void deleteDumpFilesOnExit( Dump<?> dump ) {
       if ( dump._dumpFile != null ) {
          dump._dumpFile.deleteOnExit();
       }
@@ -210,7 +203,7 @@ public class DumpUtils {
     * @throws IllegalArgumentException if the dump is closed
     * @throws IOException if an index couldn't be removed
     */
-   public static final void deleteDumpIndexFiles( Dump<?> dump ) throws IOException {
+   public static void deleteDumpIndexFiles( Dump<?> dump ) throws IOException {
       if ( dump._isClosed ) {
          throw new IllegalArgumentException("dump is closed");
       }
@@ -226,7 +219,7 @@ public class DumpUtils {
 
    /** This is an extension of {@link java.io.DataInputStream.readUTF()} which allows more than 65535 chars.
     * Use with writeUtf() from this class. */
-   public final static String readUTF( DataInput in ) throws IOException {
+   public static String readUTF( DataInput in ) throws IOException {
       int utflen = in.readUnsignedShort();
       if ( utflen == 0xffff ) {
          utflen = in.readInt();
@@ -310,21 +303,38 @@ public class DumpUtils {
 
    /**
     * Calls <code>dump.updateLast(e)</code> and catches any IOException.
-    * @return null if update was not successfull
+    * @return null if update was not successful
     */
-   public static final <E> E updateLastSilently( Dump<E> dump, E e ) {
+   public static <E> E updateLastSilently( Dump<E> dump, E e ) {
       if ( dump != null ) {
          try {
             return dump.updateLast(e);
          }
-         catch ( IOException ex ) {}
+         catch ( IOException ex ) {
+            // do nothing
+         }
       }
-      return (E)null;
+      return null;
+   }
+
+   /**
+    * Calls <code>dump.updateLast(e)</code> and wraps any IOException in a RuntimeException.
+    */
+   public static <E> E updateLastUnchecked( Dump<E> dump, E e ) {
+      if ( dump != null ) {
+         try {
+            return dump.updateLast(e);
+         }
+         catch ( IOException ex ) {
+            throw new RuntimeException(ex);
+         }
+      }
+      return null;
    }
 
    /** this is an extension of {@link java.io.DataOutputStream.writeUTF()} which allows more than 65535 chars. 
     * Use with readUtf() from this class. */
-   public final static int writeUTF( String str, DataOutput out ) throws IOException {
+   public static int writeUTF( String str, DataOutput out ) throws IOException {
       int strlen = str.length();
       int utflen = 0;
       int c, count = 0;
