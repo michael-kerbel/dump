@@ -266,7 +266,7 @@ public abstract class DumpIndex<E> implements Closeable {
     */
    protected void createOrLoad() {
 
-      boolean indexInvalid = !_lookupFile.exists() || _lookupFile.length() == 0 || !checkMeta();
+      boolean indexInvalid = !_lookupFile.exists() || (_lookupFile.length() == 0 && _lookupFile.isFile())|| !checkMeta();
       if ( indexInvalid ) {
          deleteAllIndexFiles();
       }
