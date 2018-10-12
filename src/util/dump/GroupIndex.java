@@ -202,6 +202,27 @@ public class GroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex<E> {
       throw new IllegalStateException("weird, all lookup maps are null");
    }
 
+   public int getNumValues( long key ) {
+      synchronized ( _dump ) {
+         long[] pos = getPositions(key);
+         return countLivePositions(pos);
+      }
+   }
+
+   public int getNumValues( Object key ) {
+      synchronized ( _dump ) {
+         long[] pos = getPositions(key);
+         return countLivePositions(pos);
+      }
+   }
+
+   public int getNumValues( int key ) {
+      synchronized ( _dump ) {
+         long[] pos = getPositions(key);
+         return countLivePositions(pos);
+      }
+   }
+
    @Override
    public Iterable<E> lookup( int key ) {
       synchronized ( _dump ) {
@@ -308,7 +329,7 @@ public class GroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex<E> {
       }
    }
 
-   @Override
+@Override
    protected void load() {
       if ( !getLookupFile().exists() || getLookupFile().length() == 0 ) {
          return;
@@ -569,9 +590,9 @@ public class GroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex<E> {
             }
          }
       }
-   };
+   }
 
-   protected long readNextPosition( DataInputStream updatesInput ) {
+      protected long readNextPosition( DataInputStream updatesInput ) {
       if ( updatesInput == null ) {
          return -1;
       }
@@ -584,7 +605,7 @@ public class GroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex<E> {
       catch ( IOException argh ) {
          throw new RuntimeException("Failed to read updates from " + getUpdatesFile(), argh);
       }
-   }
+   };
 
    @Override
    void delete( E o, long pos ) {
@@ -658,6 +679,15 @@ public class GroupIndex<E> extends DumpIndex<E>implements NonUniqueIndex<E> {
          }
       }
       return false;
+   }
+
+   private int countLivePositions( long[] pos ) {
+      int n = 0;
+      for ( int i = 0, length = pos.length; i < length; i++ ) {
+         if ( !_dump._deletedPositions.contains(pos[i]) )
+            n++;
+      }
+      return n;
    }
 
    private void ensureSorting( Positions pos ) {
