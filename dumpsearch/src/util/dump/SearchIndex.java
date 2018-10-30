@@ -343,7 +343,7 @@ public class SearchIndex<E> extends DumpIndex<E> {
          doc.add(new StringField("id", getId(newItem), Field.Store.YES));
          doc.add(new StringField("pos", "" + pos, Field.Store.YES));
          _documentBuilder.accept(doc, newItem);
-         _writer.updateDocument(new Term("pos", "" + pos), doc);
+         _writer.updateDocument(new Term("pos", "" + pos), _facetsConfig.build(_taxoWriter, doc));
          _commitIsPending.set(true);
       }
       catch ( IOException e ) {
