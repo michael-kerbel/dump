@@ -4,7 +4,6 @@ import static org.fest.assertions.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -20,8 +19,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import util.io.IOUtils;
-import util.reflection.FieldFieldAccessor;
-import util.reflection.Reflection;
 
 
 public class SearchIndexTest {
@@ -135,10 +132,20 @@ public class SearchIndexTest {
          for ( int i = 100; i < 110; i++ ) {
             dump.add(new Bean(i, "" + i % 10));
          }
-         facetResults =index.facetSearch("id:[0 TO 999]");
+         facetResults = index.facetSearch("id:[0 TO 999]");
          facetResult = facetResults.get(0);
          Arrays.stream(facetResult.labelValues).forEach(lav -> assertThat(lav.value).isEqualTo(11));
 
+         Bean bean100 = index.search("id:100").iterator().next();
+         bean100._data = "X";
+         dump.updateLast(bean100);
+
+         facetResults = index.facetSearch("id:[100 TO 100]");
+         facetResult = facetResults.get(0);
+         Arrays.stream(facetResult.labelValues).forEach(lav -> {
+            assertThat(lav.label).isEqualTo("X");
+            assertThat(lav.value).isEqualTo(1);
+         });
       }
    }
 
