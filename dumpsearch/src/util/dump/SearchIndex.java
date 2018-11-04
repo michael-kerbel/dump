@@ -173,6 +173,12 @@ public class SearchIndex<E> extends DumpIndex<E> {
       return facets.getAllDims(Integer.MAX_VALUE);
    }
 
+   @Override
+   public void flush() throws IOException {
+      super.flush();
+      commit();
+   }
+
    /**
     * Unimplemented!
     */
