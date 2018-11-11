@@ -31,6 +31,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -161,13 +162,13 @@ public class SearchIndex<E> extends DumpIndex<E> {
     * @param query a valid Lucene Query, which will be parsed using the provided Analyzer or StandardAnalyzer, if none provided.
     */
    public int countMatches( String query ) throws ParseException, IOException {
-      return getSearcher().count(_parser.parse(query));
+      return getSearcher().count(parse(query));
    }
 
    public List<FacetResult> facetSearch( String query ) throws ParseException, IOException {
       FacetsCollector fc = new FacetsCollector();
 
-      FacetsCollector.search(getSearcher(), _parser.parse(query), Integer.MAX_VALUE, fc);
+      FacetsCollector.search(getSearcher(), parse(query), Integer.MAX_VALUE, fc);
 
       Facets facets = new FastTaxonomyFacetCounts(getTaxonomyReader(), _facetsConfig, fc);
       return facets.getAllDims(Integer.MAX_VALUE);
@@ -231,7 +232,7 @@ public class SearchIndex<E> extends DumpIndex<E> {
     * @param maxHits the maximum number of results to return
     */
    public Iterable<E> search( String query, int maxHits ) throws ParseException, IOException {
-      ScoreDoc[] docs = getSearcher().search(_parser.parse(query), Math.max(1, maxHits)).scoreDocs;
+      ScoreDoc[] docs = getSearcher().search(parse(query), Math.max(1, maxHits)).scoreDocs;
       return () -> new Iterator<E>() {
 
          int i = 0;
@@ -334,12 +335,16 @@ public class SearchIndex<E> extends DumpIndex<E> {
    @Override
    void delete( E o, long pos ) {
       try {
-         _writer.deleteDocuments(_parser.parse("id:" + getId(o) + " pos:" + pos));
+         _writer.deleteDocuments(parse("id:" + getId(o) + " pos:" + pos));
          _commitIsPending.set(true);
       }
       catch ( IOException | ParseException e ) {
          throw new RuntimeException("Failed to delete pos " + pos, e);
       }
+   }
+
+   synchronized Query parse(String query) throws ParseException {
+      return _parser.parse(query);
    }
 
    @Override
