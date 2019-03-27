@@ -582,6 +582,14 @@ public class Dump<E> implements DumpInput<E> {
    }
 
    /**
+    * @return the accumulated number of cache lookups, 0 if no cache used
+    * @see Dump#clearCacheHitRate()
+    */
+   public int getCacheLookups() {
+      return _cacheLookups.get();
+   }
+
+   /**
     * @return the absolute file where this Dump is persisted to.
     */
    public File getDumpFile() {
