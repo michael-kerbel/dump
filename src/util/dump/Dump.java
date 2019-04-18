@@ -176,7 +176,7 @@ public class Dump<E> implements DumpInput<E> {
    RandomAccessFile _metaRaf;
    FileLock         _dumpLock;
 
-   boolean _willBeClosedDuringShutdown = false;
+   boolean _willBeClosedDuringShutdown;
 
    String _instantiationDetails;
 
@@ -192,7 +192,7 @@ public class Dump<E> implements DumpInput<E> {
     * @param dumpFile the dump file
     */
    public Dump( Class<E> beanClass, File dumpFile ) {
-      this(beanClass, new SingleTypeObjectStreamProvider(beanClass), dumpFile, DEFAULT_CACHE_SIZE, DEFAULT_MODE);
+      this(beanClass, new SingleTypeObjectStreamProvider(beanClass), dumpFile, DEFAULT_CACHE_SIZE, false, DEFAULT_MODE);
    }
 
    /**
@@ -201,7 +201,7 @@ public class Dump<E> implements DumpInput<E> {
     */
    public Dump( Class<E> beanClass, File dumpFile, Compression compression ) {
       this(beanClass, new SingleTypeObjectStreamProvider(beanClass, compression, null,
-         readDictionaryFromMeta(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, DEFAULT_MODE);
+         readDictionaryFromMeta(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, false,DEFAULT_MODE);
    }
 
    /**
@@ -210,7 +210,7 @@ public class Dump<E> implements DumpInput<E> {
     */
    public Dump( Class<E> beanClass, File dumpFile, Compression compression, Iterable<E> dictInputProvider ) {
       this(beanClass, new SingleTypeObjectStreamProvider(beanClass, compression, dictInputProvider,
-         readDictionaryFromMeta(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, DEFAULT_MODE);
+         readDictionaryFromMeta(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, false,DEFAULT_MODE);
    }
 
    /**
@@ -219,7 +219,7 @@ public class Dump<E> implements DumpInput<E> {
     * @see DumpAccessFlag
     */
    public Dump( Class<E> beanClass, File dumpFile, DumpAccessFlag... mode ) {
-      this(beanClass, new SingleTypeObjectStreamProvider(beanClass), dumpFile, DEFAULT_CACHE_SIZE, mode);
+      this(beanClass, new SingleTypeObjectStreamProvider(beanClass), dumpFile, DEFAULT_CACHE_SIZE, false, mode);
    }
 
    /**
@@ -227,7 +227,7 @@ public class Dump<E> implements DumpInput<E> {
     * A {@link SoftLRUCache} is used for caching with <code>cacheSize</code> as size. <p/>
     * @param cacheSize may only be greater 0 if you use a {@link SingleTypeObjectStreamProvider} as <code>streamProvider</code>.
     */
-   public Dump( Class<? extends E> beanClass, ObjectStreamProvider streamProvider, File dumpFile, int cacheSize, @Nullable DumpAccessFlag... mode ) {
+   public Dump( Class<? extends E> beanClass, ObjectStreamProvider streamProvider, File dumpFile, int cacheSize, boolean willBeClosedDuringShutdown, @Nullable DumpAccessFlag... mode ) {
       _beanClass = beanClass;
       _streamProvider = streamProvider;
       _mode = EnumSet.copyOf(Arrays.asList(mode == null || mode.length == 0 ? DEFAULT_MODE : mode));
@@ -235,6 +235,7 @@ public class Dump<E> implements DumpInput<E> {
       _deletionsFile = new File(dumpFile.getPath() + ".deletions");
       _metaFile = new File(dumpFile.getPath() + ".meta");
       _compressionDictionaryFile = new File(dumpFile.getPath() + ".meta.compression-dictionary");
+      _willBeClosedDuringShutdown = willBeClosedDuringShutdown;
       initInstantiationData();
       if ( OPENED_DUMPPATHS.contains(_dumpFile.getPath()) ) {
          String instantiationDetails = "";
@@ -1137,7 +1138,7 @@ public class Dump<E> implements DumpInput<E> {
        * it may be replaced by another array of
        * a different size.
        */
-      protected volatile byte buf[];
+      protected volatile byte[] buf;
 
       /**
        * The index one greater than the index of the last valid byte in
@@ -1162,8 +1163,6 @@ public class Dump<E> implements DumpInput<E> {
        * the  next <code>read</code> or <code>skip</code>
        * operation will require more bytes to be
        * read from the contained  input stream.
-       *
-       * @see     java.io.BufferedInputStream#buf
        */
       protected int pos;
 
@@ -1273,7 +1272,6 @@ public class Dump<E> implements DumpInput<E> {
        * @exception  IOException  if this input stream has been closed by
        *              invoking its {@link #close()} method,
        *              or an I/O error occurs.
-       * @see        java.io.FilterInputStream#in
        */
       @Override
       public/*synchronized*/int read() throws IOException {
@@ -1334,7 +1332,7 @@ public class Dump<E> implements DumpInput<E> {
        *              or an I/O error occurs.
        */
       @Override
-      public/*synchronized*/int read( @Nonnull byte b[], int off, int len ) throws IOException {
+      public/*synchronized*/int read( @Nonnull byte[] b, int off, int len ) throws IOException {
          // we don't share instances of this class or synchronize access on a different level, so this method is not synchronized
          getBufIfOpen(); // Check for closed stream
          if ( (off | len | (off + len) | (b.length - (off + len))) < 0 ) {
@@ -1367,7 +1365,7 @@ public class Dump<E> implements DumpInput<E> {
          _rafPos = rafPos;
       }
 
-      int read0( byte b[], int off, int len ) throws IOException {
+      int read0( byte[] b, int off, int len ) throws IOException {
          int n = 0;
          for ( ;; ) {
             int nread = read1(b, off + n, len - n);
