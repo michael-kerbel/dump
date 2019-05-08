@@ -58,8 +58,8 @@ import util.reflection.Reflection;
  *    for(Bean bean: index.search("data:searchtoken")) doSomething(bean);
  * </code></p>
  *
- * <p>For custom Analyzers (default is {@link StandardAnalyzer}) use the {@link IndexWriterConfig} constructor param. You have to use the same config
- * every time you use the index!</p>
+ * <p>For custom Analyzers (default is {@link StandardAnalyzer}) use the {@link IndexWriterConfig} constructor param. See CustomAnalyzerTest for an example.
+ * You have to use the same config every time you use the index!</p>
  *
  * <p>For a custom QueryParser (default is {@link QueryParser}) use the constructor param. You have to use the same config
  * every time you use the index!</p>
