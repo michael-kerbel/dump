@@ -9,13 +9,13 @@ import util.dump.ExternalizableBean;
 import util.time.StopWatch;
 
 
-public class AESBenchmark {
+public class AesBenchmark {
 
    private static final int BEAN_NUMBER = 1000000;
 
 
    public static void main( String[] args ) throws IOException {
-      new AESBenchmark().doIt();
+      new AesBenchmark().doIt();
    }
 
    private void doIt() throws IOException {
@@ -27,7 +27,7 @@ public class AESBenchmark {
       System.err.println("file size: " + dumpFile.length());
       dumpFile.delete();
 
-      Dump encrypted = new Dump<>(TestBean.class, dumpFile, AESCrypter.AES256, AESCrypter.createRandomKey());
+      Dump encrypted = new Dump<>(TestBean.class, dumpFile, new AesCrypter(AesCrypter.createRandomKey()));
       measure(encrypted, "AES256");
       encrypted.close();
       System.err.println("file size: " + dumpFile.length());
