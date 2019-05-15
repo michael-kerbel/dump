@@ -6,18 +6,18 @@ import java.io.OutputStream;
 
 public interface CompressingObjectOutputStream {
 
-   default void compress( OutputStream out, Compression compressionType, FastByteArrayOutputStream compressionByteBuffer, byte[] reusableCompressBytesArray,
+   default void compress( OutputStream out, ByteArrayPacker compressionType, FastByteArrayOutputStream compressionByteBuffer, byte[] reusableCompressBytesArray,
          byte[] _dict ) throws IOException {
       byte[] bytes = compressionByteBuffer.getBuf();
       int bytesLength = compressionByteBuffer.size();
-      reusableCompressBytesArray = compressionType.compress(bytes, bytesLength, reusableCompressBytesArray, _dict);
+      reusableCompressBytesArray = compressionType.pack(bytes, bytesLength, reusableCompressBytesArray, _dict);
       int compressedLength = reusableCompressBytesArray.length;
-      if ( compressionType.isCompressedSizeInFirstFourBytes() ) {
+      if ( compressionType.isPackedSizeInFirstFourBytes() ) {
          compressedLength = (((reusableCompressBytesArray[0] & 0xff) << 24) + ((reusableCompressBytesArray[1] & 0xff) << 16)
             + ((reusableCompressBytesArray[2] & 0xff) << 8) + (reusableCompressBytesArray[3] & 0xff));
       }
 
-      if ( compressedLength + 6 < bytesLength ) {
+      if ( compressionType.isAlwaysPack() || compressedLength + 6 < bytesLength ) {
          out.write(1);
 
          if ( compressedLength >= 65535 ) {
@@ -29,7 +29,7 @@ public interface CompressingObjectOutputStream {
          out.write((compressedLength >>> 8) & 0xFF);
          out.write(compressedLength & 0xFF);
 
-         if ( compressionType.isCompressedSizeInFirstFourBytes() ) {
+         if ( compressionType.isPackedSizeInFirstFourBytes() ) {
             out.write(reusableCompressBytesArray, 4, compressedLength);
          } else {
             out.write(reusableCompressBytesArray);

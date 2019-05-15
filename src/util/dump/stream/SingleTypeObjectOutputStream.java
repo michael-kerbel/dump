@@ -25,7 +25,7 @@ public class SingleTypeObjectOutputStream<E extends Externalizable> extends Data
 
 
    private final Class<E>            _class;
-   private Compression               _compressionType            = null;
+   private ByteArrayPacker           _compressionType            = null;
    private FastByteArrayOutputStream _compressionByteBuffer      = null;
    private OutputStream              _originalOut                = null;
    private byte[]                    _reusableCompressBytesArray = null;
@@ -37,11 +37,11 @@ public class SingleTypeObjectOutputStream<E extends Externalizable> extends Data
       _class = c;
    }
 
-   public SingleTypeObjectOutputStream( OutputStream out, Class<E> c, Compression compressionType ) {
+   public SingleTypeObjectOutputStream( OutputStream out, Class<E> c, ByteArrayPacker compressionType ) {
       this(out, c, compressionType, null);
    }
 
-   public SingleTypeObjectOutputStream( OutputStream out, Class<E> c, Compression compressionType, byte[] dict ) {
+   public SingleTypeObjectOutputStream( OutputStream out, Class<E> c, ByteArrayPacker compressionType, byte[] dict ) {
       this(out, c);
       _compressionType = compressionType;
       _dict = dict;

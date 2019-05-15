@@ -24,20 +24,20 @@ import java.io.OutputStream;
  */
 public class SingleTypeObjectStreamProvider<E extends Externalizable> implements ObjectStreamProvider {
 
-   private final Class<E> _class;
-   private Compression    _compressionType = null;
-   private byte[]         _dict;
+   private final Class<E>  _class;
+   private ByteArrayPacker _compressionType = null;
+   private byte[]          _dict;
 
 
    public SingleTypeObjectStreamProvider( Class<E> c ) {
       _class = c;
    }
 
-   public SingleTypeObjectStreamProvider( Class<E> c, Compression compressionType ) {
+   public SingleTypeObjectStreamProvider( Class<E> c, ByteArrayPacker compressionType ) {
       this(c, compressionType, null, null);
    }
 
-   public SingleTypeObjectStreamProvider( Class<E> c, Compression compressionType, Iterable<E> dictInputProvider, byte[] dict ) {
+   public SingleTypeObjectStreamProvider( Class<E> c, ByteArrayPacker compressionType, Iterable<E> dictInputProvider, byte[] dict ) {
       _class = c;
       _compressionType = compressionType;
       if ( dict != null && dict.length > 0 ) {

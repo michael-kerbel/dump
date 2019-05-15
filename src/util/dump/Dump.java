@@ -49,6 +49,8 @@ import gnu.trove.set.hash.TLongHashSet;
 import util.collections.SoftLRUCache;
 import util.dump.UniqueIndex.DuplicateKeyException;
 import util.dump.sort.InfiniteSorter;
+import util.dump.stream.AESCrypter;
+import util.dump.stream.ByteArrayPacker;
 import util.dump.stream.Compression;
 import util.dump.stream.ObjectStreamProvider;
 import util.dump.stream.SingleTypeObjectStreamProvider;
@@ -202,6 +204,10 @@ public class Dump<E> implements DumpInput<E> {
    public Dump( Class<E> beanClass, File dumpFile, Compression compression ) {
       this(beanClass, new SingleTypeObjectStreamProvider(beanClass, compression, null,
          readDictionaryFromMeta(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, false,DEFAULT_MODE);
+   }
+
+   public Dump( Class<E> beanClass, File dumpFile, AESCrypter crypter, @Nonnull byte[] key ) {
+      this(beanClass, new SingleTypeObjectStreamProvider(beanClass, crypter, null, key), dumpFile, DEFAULT_CACHE_SIZE, false,DEFAULT_MODE);
    }
 
    /**
