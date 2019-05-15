@@ -49,8 +49,7 @@ import gnu.trove.set.hash.TLongHashSet;
 import util.collections.SoftLRUCache;
 import util.dump.UniqueIndex.DuplicateKeyException;
 import util.dump.sort.InfiniteSorter;
-import util.dump.stream.AESCrypter;
-import util.dump.stream.ByteArrayPacker;
+import util.dump.stream.AesCrypter;
 import util.dump.stream.Compression;
 import util.dump.stream.ObjectStreamProvider;
 import util.dump.stream.SingleTypeObjectStreamProvider;
@@ -117,8 +116,9 @@ public class Dump<E> implements DumpInput<E> {
    }
 
    static byte[] readDictionaryFromMeta( File compressionDictionaryFile ) {
-      if ( !compressionDictionaryFile.exists() )
+      if ( !compressionDictionaryFile.exists() ) {
          return null;
+      }
       try {
          RandomAccessFile metaRAF = new RandomAccessFile(compressionDictionaryFile, "rw");
          int length = metaRAF.readInt();
@@ -203,11 +203,11 @@ public class Dump<E> implements DumpInput<E> {
     */
    public Dump( Class<E> beanClass, File dumpFile, Compression compression ) {
       this(beanClass, new SingleTypeObjectStreamProvider(beanClass, compression, null,
-         readDictionaryFromMeta(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, false,DEFAULT_MODE);
+         readDictionaryFromMeta(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, false, DEFAULT_MODE);
    }
 
-   public Dump( Class<E> beanClass, File dumpFile, AESCrypter crypter, @Nonnull byte[] key ) {
-      this(beanClass, new SingleTypeObjectStreamProvider(beanClass, crypter, null, key), dumpFile, DEFAULT_CACHE_SIZE, false,DEFAULT_MODE);
+   public Dump( Class<E> beanClass, File dumpFile, AesCrypter crypter ) {
+      this(beanClass, new SingleTypeObjectStreamProvider(beanClass, crypter), dumpFile, DEFAULT_CACHE_SIZE, false, DEFAULT_MODE);
    }
 
    /**
@@ -216,7 +216,7 @@ public class Dump<E> implements DumpInput<E> {
     */
    public Dump( Class<E> beanClass, File dumpFile, Compression compression, Iterable<E> dictInputProvider ) {
       this(beanClass, new SingleTypeObjectStreamProvider(beanClass, compression, dictInputProvider,
-         readDictionaryFromMeta(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, false,DEFAULT_MODE);
+         readDictionaryFromMeta(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, false, DEFAULT_MODE);
    }
 
    /**
@@ -233,7 +233,8 @@ public class Dump<E> implements DumpInput<E> {
     * A {@link SoftLRUCache} is used for caching with <code>cacheSize</code> as size. <p/>
     * @param cacheSize may only be greater 0 if you use a {@link SingleTypeObjectStreamProvider} as <code>streamProvider</code>.
     */
-   public Dump( Class<? extends E> beanClass, ObjectStreamProvider streamProvider, File dumpFile, int cacheSize, boolean willBeClosedDuringShutdown, @Nullable DumpAccessFlag... mode ) {
+   public Dump( Class<? extends E> beanClass, ObjectStreamProvider streamProvider, File dumpFile, int cacheSize, boolean willBeClosedDuringShutdown,
+         @Nullable DumpAccessFlag... mode ) {
       _beanClass = beanClass;
       _streamProvider = streamProvider;
       _mode = EnumSet.copyOf(Arrays.asList(mode == null || mode.length == 0 ? DEFAULT_MODE : mode));
@@ -1497,7 +1498,7 @@ public class Dump<E> implements DumpInput<E> {
 
       private DeletionAwareDumpReader( File dumpFile, ObjectStreamProvider streamProvider, long maxPos ) throws IOException {
          super(new ResettableBufferedInputStream(new FileInputStream(_dumpFile), 0, false), 0, streamProvider);
-         _sourceFile=dumpFile;
+         _sourceFile = dumpFile;
          if ( !_mode.contains(DumpAccessFlag.read) ) {
             throw new AccessControlException("Read operation not allowed with current modes.");
          }
