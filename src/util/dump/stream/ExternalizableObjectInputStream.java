@@ -90,7 +90,7 @@ public class ExternalizableObjectInputStream extends DataInputStream implements 
                   if ( _reusableCompressedBytesArray.length < length )
                      _reusableCompressedBytesArray = new byte[length];
                   readFully(_reusableCompressedBytesArray, 0, length);
-                  _reusableUncompressBytesArray = _compressionType.uncompress(_reusableCompressedBytesArray, length, _reusableUncompressBytesArray, _dict);
+                  _reusableUncompressBytesArray = _compressionType.unpack(_reusableCompressedBytesArray, length, _reusableUncompressBytesArray, _dict);
 
                   _compressionByteBuffer = new ByteArrayInputStream(_reusableUncompressBytesArray);
                   in = _compressionByteBuffer;

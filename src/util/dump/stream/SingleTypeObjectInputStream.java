@@ -29,7 +29,7 @@ public class SingleTypeObjectInputStream<E extends Externalizable> extends DataI
 
 
    private final Class          _class;
-   private Compression          _compressionType              = null;
+   private ByteArrayPacker      _compressionType              = null;
    private byte[]               _dict;
    private ByteArrayInputStream _compressionByteBuffer        = null;
    private InputStream          _originalIn                   = null;
@@ -42,11 +42,11 @@ public class SingleTypeObjectInputStream<E extends Externalizable> extends DataI
       _class = c;
    }
 
-   public SingleTypeObjectInputStream( InputStream in, Class c, Compression compressionType ) {
+   public SingleTypeObjectInputStream( InputStream in, Class c, ByteArrayPacker compressionType ) {
       this(in, c, compressionType, null);
    }
 
-   public SingleTypeObjectInputStream( InputStream in, Class c, Compression compressionType, byte[] dict ) {
+   public SingleTypeObjectInputStream( InputStream in, Class c, ByteArrayPacker compressionType, byte[] dict ) {
       this(in, c);
       _compressionType = compressionType;
       _dict = dict;
@@ -70,7 +70,7 @@ public class SingleTypeObjectInputStream<E extends Externalizable> extends DataI
                if ( _reusableCompressedBytesArray.length < length )
                   _reusableCompressedBytesArray = new byte[length];
                readFully(_reusableCompressedBytesArray, 0, length);
-               _reusableUncompressBytesArray = _compressionType.uncompress(_reusableCompressedBytesArray, length, _reusableUncompressBytesArray, _dict);
+               _reusableUncompressBytesArray = _compressionType.unpack(_reusableCompressedBytesArray, length, _reusableUncompressBytesArray, _dict);
 
                _compressionByteBuffer = new ByteArrayInputStream(_reusableUncompressBytesArray);
                in = _compressionByteBuffer;

@@ -37,7 +37,7 @@ import util.io.IOUtils;
  *
  * Idea: put the compression calculations into a second thread, to increase performance.  
  */
-public enum Compression {
+public enum Compression implements ByteArrayPacker {
    GZipLevel0, GZipLevel1, GZipLevel2, GZipLevel3, GZipLevel4, GZipLevel5, GZipLevel6, GZipLevel7, GZipLevel8, GZipLevel9, Snappy, LZ4, Zstd1, Zstd5, Zstd10, Zstd15, Zstd22;
 
    private static LZ4Compressor _lz4Compressor = null;
@@ -47,7 +47,7 @@ public enum Compression {
    private Map<byte[], ZstdDictDecompress> _zstdDictDecompress = new ConcurrentLRUCache<>(4, 3);
 
 
-   public byte[] compress( byte[] bytes, int bytesLength, @Nullable byte[] target, @Nullable byte[] dict ) throws IOException {
+   public byte[] pack( byte[] bytes, int bytesLength, @Nullable byte[] target, @Nullable byte[] dict ) throws IOException {
       switch ( this ) {
       case GZipLevel0:
          return gzip(0, bytes, bytesLength);
@@ -121,7 +121,7 @@ public enum Compression {
       return null;
    }
 
-   public boolean isCompressedSizeInFirstFourBytes() {
+   public boolean isPackedSizeInFirstFourBytes() {
       switch ( this ) {
       case Snappy:
       case LZ4:
@@ -135,7 +135,7 @@ public enum Compression {
       return false;
    }
 
-   public byte[] uncompress( byte[] source, int sourceLength, @Nullable byte[] target, @Nullable byte[] dict ) throws IOException {
+   public byte[] unpack( byte[] source, int sourceLength, @Nullable byte[] target, @Nullable byte[] dict ) throws IOException {
       switch ( this ) {
       case GZipLevel0:
       case GZipLevel1:
