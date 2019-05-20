@@ -33,6 +33,7 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 
@@ -109,14 +110,18 @@ public class SearchIndex<E> extends DumpIndex<E> {
    public void close() throws IOException {
       commit();
 
-      if ( _writer != null )
+      if ( _writer != null ) {
          _writer.close();
-      if ( _taxoWriter != null )
+      }
+      if ( _taxoWriter != null ) {
          _taxoWriter.close();
-      if ( _searcher != null && _searcher.getIndexReader() != null )
+      }
+      if ( _searcher != null && _searcher.getIndexReader() != null ) {
          _searcher.getIndexReader().close();
-      if ( _taxoReader != null )
+      }
+      if ( _taxoReader != null ) {
          _taxoReader.close();
+      }
 
       super.close();
    }
@@ -162,16 +167,18 @@ public class SearchIndex<E> extends DumpIndex<E> {
     * @param query a valid Lucene Query, which will be parsed using the provided Analyzer or StandardAnalyzer, if none provided.
     */
    public int countMatches( String query ) throws ParseException, IOException {
-      return getSearcher().count(parse(query));
+      return retryOnAlreadyClosed(() -> getSearcher().count(parse(query)));
    }
 
    public List<FacetResult> facetSearch( String query ) throws ParseException, IOException {
-      FacetsCollector fc = new FacetsCollector();
+      return retryOnAlreadyClosed(() -> {
+         FacetsCollector fc = new FacetsCollector();
 
-      FacetsCollector.search(getSearcher(), parse(query), Integer.MAX_VALUE, fc);
+         FacetsCollector.search(getSearcher(), parse(query), Integer.MAX_VALUE, fc);
 
-      Facets facets = new FastTaxonomyFacetCounts(getTaxonomyReader(), _facetsConfig, fc);
-      return facets.getAllDims(Integer.MAX_VALUE);
+         Facets facets = new FastTaxonomyFacetCounts(getTaxonomyReader(), _facetsConfig, fc);
+         return facets.getAllDims(Integer.MAX_VALUE);
+      });
    }
 
    @Override
@@ -211,8 +218,9 @@ public class SearchIndex<E> extends DumpIndex<E> {
       commit();
       DirectoryTaxonomyReader newTaxoReader = TaxonomyReader.openIfChanged(_taxoReader);
       if ( newTaxoReader != null ) {
-         if ( _taxoReader != null )
+         if ( _taxoReader != null ) {
             _taxoReader.close();
+         }
          _taxoReader = newTaxoReader;
       }
       return _taxoReader;
@@ -232,31 +240,33 @@ public class SearchIndex<E> extends DumpIndex<E> {
     * @param maxHits the maximum number of results to return
     */
    public Iterable<E> search( String query, int maxHits ) throws ParseException, IOException {
-      ScoreDoc[] docs = getSearcher().search(parse(query), Math.max(1, maxHits)).scoreDocs;
-      return () -> new Iterator<E>() {
+      return retryOnAlreadyClosed(() -> {
+         ScoreDoc[] docs = getSearcher().search(parse(query), Math.max(1, maxHits)).scoreDocs;
+         return () -> new Iterator<E>() {
 
-         int i = 0;
+            int i = 0;
 
 
-         @Override
-         public boolean hasNext() {
-            return i < docs.length;
-         }
-
-         @Override
-         public E next() {
-            try {
-               Document doc = getSearcher().doc(docs[i].doc);
-               String pos = doc.get("pos");
-               E e = _dump.get(Long.parseLong(pos));
-               i++;
-               return e;
+            @Override
+            public boolean hasNext() {
+               return i < docs.length;
             }
-            catch ( IOException e ) {
-               throw new RuntimeException("Failed to perform search", e);
+
+            @Override
+            public E next() {
+               try {
+                  Document doc = getSearcher().doc(docs[i].doc);
+                  String pos = doc.get("pos");
+                  E e = _dump.get(Long.parseLong(pos));
+                  i++;
+                  return e;
+               }
+               catch ( IOException e ) {
+                  throw new RuntimeException("Failed to perform search", e);
+               }
             }
-         }
-      };
+         };
+      });
    }
 
    protected void commit() throws IOException {
@@ -343,7 +353,7 @@ public class SearchIndex<E> extends DumpIndex<E> {
       }
    }
 
-   synchronized Query parse(String query) throws ParseException {
+   synchronized Query parse( String query ) throws ParseException {
       return _parser.parse(query);
    }
 
@@ -366,6 +376,33 @@ public class SearchIndex<E> extends DumpIndex<E> {
       return (_fieldIsInt ? getIntKey(o) : (_fieldIsLong ? getLongKey(o) : getObjectKey(o))).toString();
    }
 
+   /** We are optimistic with regard to concurrent modifications to the index. When it fails, we simply retry the underlying search. */
+   private <T> T retryOnAlreadyClosed( ThrowingSupplier<T> s ) throws ParseException, IOException {
+      AlreadyClosedException e = null;
+      int n = 3;
+      while ( n-- > 0 ) {
+         try {
+            return s.get();
+         }
+         catch ( AlreadyClosedException ee ) {
+            // retry silently
+            e = ee;
+         }
+      }
+      throw new RuntimeException("Failed to execute search, even after multiple retries", e);
+   }
+
+
+   @FunctionalInterface
+   public interface ThrowingSupplier<T> {
+
+      /**
+       * Gets a result.
+       *
+       * @return a result
+       */
+      T get() throws ParseException, IOException;
+   }
 
    public static class SearchIndexBuilder<E> {
 
@@ -406,8 +443,9 @@ public class SearchIndex<E> extends DumpIndex<E> {
             throw new RuntimeException("You may not set both a custom query parser and longFieldNames or doubleFieldNames");
          }
 
-         if ( _indexWriterConfig == null )
+         if ( _indexWriterConfig == null ) {
             _indexWriterConfig = new IndexWriterConfig(_analyzer);
+         }
 
          return new SearchIndex(_dump, _idFieldAccessor, _documentBuilder, _indexWriterConfig, _queryParser, _facetsConfig);
       }
@@ -448,4 +486,5 @@ public class SearchIndex<E> extends DumpIndex<E> {
       }
 
    }
+
 }
