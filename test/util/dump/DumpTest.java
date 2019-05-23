@@ -5,6 +5,7 @@ import static org.fest.assertions.Assertions.assertThat;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.security.AccessControlException;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -32,8 +33,11 @@ public class DumpTest {
          }
       });
       for ( File df : dumpFile ) {
-         if ( !df.delete() ) {
-            System.out.println("Failed to delete old dump file " + df);
+         try {
+            Files.delete(df.toPath());
+         }
+         catch ( IOException e ) {
+            e.printStackTrace();
          }
       }
    }
@@ -76,15 +80,11 @@ public class DumpTest {
       dump.add(new Bean(3));
 
       try {
-         for ( @SuppressWarnings("unused")
-         Bean bean : dump ) {
-            Assert.fail();
-         }
+         dump.get(0);
+         Assert.fail();
       }
       catch ( AccessControlException e ) {}
       finally {
-         // HACK TODO as long as aborted iterators are not closed in Dump.close() this will fail on Windows, unless we close all open files with a gc
-         System.gc();
          dump.close();
       }
    }
