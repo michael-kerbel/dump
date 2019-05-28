@@ -46,7 +46,57 @@ public enum Compression implements ByteArrayPacker {
    private Map<byte[], ZstdDictCompress> _zstdDictCompress = new ConcurrentLRUCache<>(4, 3);
    private Map<byte[], ZstdDictDecompress> _zstdDictDecompress = new ConcurrentLRUCache<>(4, 3);
 
+   @Override
+   public <E extends Externalizable> byte[] initDictionary( Iterable<E> dictInputProvider, ObjectStreamProvider objectStreamProvider ) {
+      switch ( this ) {
+      case Zstd1:
+      case Zstd5:
+      case Zstd10:
+      case Zstd15:
+      case Zstd22:
+         /*
+          * from dictBuilder/zdict.h
+          *  Tips: In general, a reasonable dictionary has a size of ~ 100 KB.
+          *        It's possible to select smaller or larger size, just by specifying `dictBufferCapacity`.
+          *        In general, it's recommended to provide a few thousands samples, though this can vary a lot.
+          *        It's recommended that total size of all samples be about ~x100 times the target size of dictionary.
+          */
+         ZstdDictTrainer trainer = new ZstdDictTrainer(10_000_000, 102_400);
+         try {
+            for ( E e : dictInputProvider ) {
+               ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+               ObjectOutput objectOutput = objectStreamProvider.createObjectOutput(bytes);
+               objectOutput.writeObject(e);
+               boolean added = trainer.addSample(bytes.toByteArray());
+               if ( !added ) {
+                  break;
+               }
+            }
+         }
+         catch ( IOException e ) {
+            throw new RuntimeException("Failed to init compression dictionary", e);
+         }
+         return trainer.trainSamples();
+      }
+      return null;
+   }
 
+   @Override
+   public boolean isPackedSizeInFirstFourBytes() {
+      switch ( this ) {
+      case Snappy:
+      case LZ4:
+      case Zstd1:
+      case Zstd5:
+      case Zstd10:
+      case Zstd15:
+      case Zstd22:
+         return true;
+      }
+      return false;
+   }
+
+   @Override
    public byte[] pack( byte[] bytes, int bytesLength, @Nullable byte[] target, @Nullable byte[] dict ) throws IOException {
       switch ( this ) {
       case GZipLevel0:
@@ -87,54 +137,7 @@ public enum Compression implements ByteArrayPacker {
       return bytes;
    }
 
-   public <E extends Externalizable> byte[] initDictionary( Iterable<E> dictInputProvider, ObjectStreamProvider objectStreamProvider ) {
-      switch ( this ) {
-      case Zstd1:
-      case Zstd5:
-      case Zstd10:
-      case Zstd15:
-      case Zstd22:
-         /*
-          * from dictBuilder/zdict.h
-          *  Tips: In general, a reasonable dictionary has a size of ~ 100 KB.
-          *        It's possible to select smaller or larger size, just by specifying `dictBufferCapacity`.
-          *        In general, it's recommended to provide a few thousands samples, though this can vary a lot.
-          *        It's recommended that total size of all samples be about ~x100 times the target size of dictionary.
-          */
-         ZstdDictTrainer trainer = new ZstdDictTrainer(10_000_000, 102_400);
-         try {
-            for ( E e : dictInputProvider ) {
-               ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-               ObjectOutput objectOutput = objectStreamProvider.createObjectOutput(bytes);
-               objectOutput.writeObject(e);
-               boolean added = trainer.addSample(bytes.toByteArray());
-               if ( !added ) {
-                  break;
-               }
-            }
-         }
-         catch ( IOException e ) {
-            throw new RuntimeException("Failed to init compression dictionary", e);
-         }
-         return trainer.trainSamples();
-      }
-      return null;
-   }
-
-   public boolean isPackedSizeInFirstFourBytes() {
-      switch ( this ) {
-      case Snappy:
-      case LZ4:
-      case Zstd1:
-      case Zstd5:
-      case Zstd10:
-      case Zstd15:
-      case Zstd22:
-         return true;
-      }
-      return false;
-   }
-
+   @Override
    public byte[] unpack( byte[] source, int sourceLength, @Nullable byte[] target, @Nullable byte[] dict ) throws IOException {
       switch ( this ) {
       case GZipLevel0:
@@ -267,8 +270,9 @@ public enum Compression implements ByteArrayPacker {
       if ( length > 100_000_000 ) {
          throw new RuntimeException("insane size for decompressed length:" + length + " - failing now to prevent OutOfMemoryErrors");
       }
-      if ( target == null || length > target.length )
+      if ( target == null || length > target.length ) {
          target = new byte[(int)length];
+      }
       if ( dict != null ) {
          Zstd.decompressFastDict(target, 0, source, 0, sourceLength, getZDict(dict));
       } else {
