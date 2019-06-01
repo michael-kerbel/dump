@@ -54,7 +54,7 @@ class SortedInputMerger<E> implements DumpInput<E>, Iterator<E> {
    @Override
    public void close() throws IOException {
 
-      this.nextElement = null;
+      nextElement = null;
 
       if ( dualChannelA != null ) {
          dualChannelA.close();
@@ -79,7 +79,7 @@ class SortedInputMerger<E> implements DumpInput<E>, Iterator<E> {
             int c = compare(lastA, lastB);
             if ( c > 0 ) {
                // return channel B
-               this.nextElement = lastB;
+               nextElement = lastB;
                nextPrepared = true;
 
                // if channelB is empty then it goes into transition for single channelA
@@ -92,7 +92,7 @@ class SortedInputMerger<E> implements DumpInput<E>, Iterator<E> {
             } else {
 
                // return channel A
-               this.nextElement = lastA;
+               nextElement = lastA;
                nextPrepared = true;
 
                // if channelA is empty then it goes into transition for single channelB
@@ -109,13 +109,13 @@ class SortedInputMerger<E> implements DumpInput<E>, Iterator<E> {
          case singleStream:
             if ( hasNextSingle() ) {
                // single stream has data
-               this.nextElement = lastSingle;
+               nextElement = lastSingle;
                nextPrepared = true;
                return true;
             }
             // EOF reached change status and inform the user
             mergerMode = MergerMode.concluded;
-            this.nextElement = null;
+            nextElement = null;
             nextPrepared = true;
             return false;
 
@@ -123,12 +123,12 @@ class SortedInputMerger<E> implements DumpInput<E>, Iterator<E> {
 
             // returns the remaining item from the dualChannel operation
             mergerMode = MergerMode.singleStream;
-            this.nextElement = lastSingle;
+            nextElement = lastSingle;
             nextPrepared = true;
             return true;
 
          case concluded:
-            this.nextElement = null;
+            nextElement = null;
             nextPrepared = true;
             return false;
 
@@ -200,7 +200,7 @@ class SortedInputMerger<E> implements DumpInput<E>, Iterator<E> {
       }
 
       // recursively splits the list into a new merger
-      return new SortedInputMerger<>(sublist, this.comparator);
+      return new SortedInputMerger<>(sublist, comparator);
 
    }
 
@@ -210,8 +210,9 @@ class SortedInputMerger<E> implements DumpInput<E>, Iterator<E> {
       if ( hasNext ) {
          E next = iteratorA.next();
          if ( lastA != null && compare(lastA, next) > 0 ) {
-            if ( dualChannelA instanceof DumpReader )
-               throw new IllegalStateException("underlying stream " + ((DumpReader)dualChannelA).getSourceFile() + " not sorted!");
+            if ( dualChannelA instanceof DumpReader ) {
+               throw new IllegalStateException("underlying stream " + ((DumpReader)dualChannelA).getSourceFile() + " not sorted! " + lastA + " > " + next);
+            }
             throw new IllegalStateException("underlying stream not sorted!");
          }
          lastA = next;
@@ -227,8 +228,9 @@ class SortedInputMerger<E> implements DumpInput<E>, Iterator<E> {
       if ( hasNext ) {
          E next = iteratorB.next();
          if ( lastB != null && compare(lastB, next) > 0 ) {
-            if ( dualChannelB instanceof DumpReader )
-               throw new IllegalStateException("underlying stream " + ((DumpReader)dualChannelB).getSourceFile() + " not sorted!");
+            if ( dualChannelB instanceof DumpReader ) {
+               throw new IllegalStateException("underlying stream " + ((DumpReader)dualChannelB).getSourceFile() + " not sorted! " + lastB + " > " + next);
+            }
             throw new IllegalStateException("underlying stream not sorted!");
          }
          lastB = next;
@@ -288,7 +290,10 @@ class SortedInputMerger<E> implements DumpInput<E>, Iterator<E> {
 
 
    // private enumeration used to document the merger status
-   private enum MergerMode {
+   private enum MergerMode
+
+
+   {
       /*
        * uninitialized: initial status, channels are not yed assigned nor initialized
        * dualStream: channelA and channelB are active and with elements ready to be compared.
