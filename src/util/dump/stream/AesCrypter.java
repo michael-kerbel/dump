@@ -1,7 +1,6 @@
 package util.dump.stream;
 
 import java.io.Externalizable;
-import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -26,13 +25,7 @@ public class AesCrypter implements ByteArrayPacker {
          throw new RuntimeException("Failed to instantiate Cipher", e);
       }
    });
-   private static final ThreadLocal<SecureRandom> RANDOM = new ThreadLocal<SecureRandom>() {
-
-      @Override
-      protected SecureRandom initialValue() {
-         return newDefaultSecureRandom();
-      }
-   };
+   private static final ThreadLocal<SecureRandom> RANDOM = ThreadLocal.withInitial(() -> newDefaultSecureRandom());
 
 
    public static byte[] createRandomKey() {
@@ -66,7 +59,7 @@ public class AesCrypter implements ByteArrayPacker {
 
    private static byte[] randBytes( int size ) {
       byte[] rand = new byte[size];
-      ((SecureRandom)RANDOM.get()).nextBytes(rand);
+      RANDOM.get().nextBytes(rand);
       return rand;
    }
 
@@ -85,18 +78,6 @@ public class AesCrypter implements ByteArrayPacker {
       keySpec = new SecretKeySpec(key, "AES");
    }
 
-   public byte[] decrypt( final byte[] ciphertext ) throws GeneralSecurityException {
-      if ( ciphertext.length < 28 ) {
-         throw new RuntimeException("ciphertext too short");
-      } else {
-         AlgorithmParameterSpec params = getParams(ciphertext, 0, 12);
-         Cipher cipher = instance();
-         cipher.init(Cipher.DECRYPT_MODE, keySpec, params);
-
-         return cipher.doFinal(ciphertext, 12, ciphertext.length - 12);
-      }
-   }
-
    @Override
    public <E extends Externalizable> byte[] initDictionary( Iterable<E> dictInputProvider, ObjectStreamProvider objectStreamProvider ) {
       return null;
@@ -113,7 +94,7 @@ public class AesCrypter implements ByteArrayPacker {
    }
 
    @Override
-   public byte[] pack( byte[] source, int sourceLength, @Nullable byte[] target, @Nullable byte[] dict ) throws IOException {
+   public byte[] pack( byte[] source, int sourceLength, @Nullable byte[] target, @Nullable byte[] dict ) {
       try {
          if ( sourceLength > 2147483619 ) {
             throw new RuntimeException("source too long");
@@ -145,7 +126,7 @@ public class AesCrypter implements ByteArrayPacker {
    }
 
    @Override
-   public byte[] unpack( byte[] source, int sourceLength, @Nullable byte[] target, @Nullable byte[] dict ) throws IOException {
+   public byte[] unpack( byte[] source, int sourceLength, @Nullable byte[] target, @Nullable byte[] dict ) {
       try {
          if ( source.length < 28 ) {
             throw new RuntimeException("source too short");
