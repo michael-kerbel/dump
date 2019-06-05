@@ -174,7 +174,7 @@ public class SearchIndex<E> extends DumpIndex<E> {
       return retryOnAlreadyClosed(() -> {
          FacetsCollector fc = new FacetsCollector();
 
-         FacetsCollector.search(getSearcher(), parse(query), Integer.MAX_VALUE, fc);
+         FacetsCollector.search(getSearcher(), parse(query), 0, fc);
 
          Facets facets = new FastTaxonomyFacetCounts(getTaxonomyReader(), _facetsConfig, fc);
          return facets.getAllDims(Integer.MAX_VALUE);
@@ -239,10 +239,11 @@ public class SearchIndex<E> extends DumpIndex<E> {
     * @param query a valid Lucene Query, which will be parsed using the provided Analyzer or StandardAnalyzer, if none provided.
     * @param maxHits the maximum number of results to return
     */
+   @SuppressWarnings("unchecked") // missing <> in "new Iterator()..." is a workaround for compiler bug in JDK 11.0.2
    public Iterable<E> search( String query, int maxHits ) throws ParseException, IOException {
       return retryOnAlreadyClosed(() -> {
          ScoreDoc[] docs = getSearcher().search(parse(query), Math.max(1, maxHits)).scoreDocs;
-         return () -> new Iterator<E>() {
+         return () -> new Iterator() {
 
             int i = 0;
 
