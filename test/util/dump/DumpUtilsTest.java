@@ -12,13 +12,12 @@ import java.io.FileFilter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 
-import junit.framework.Assert;
-
 import org.fest.util.Files;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import junit.framework.Assert;
 import util.dump.DumpTest.Bean;
 
 
@@ -32,6 +31,7 @@ public class DumpUtilsTest {
    public void deleteOldTestDumps() {
       File[] dumpFile = new File(".").listFiles(new FileFilter() {
 
+         @Override
          public boolean accept( File f ) {
             return f.getName().startsWith("DumpUtilsTest");
          }
@@ -55,7 +55,7 @@ public class DumpUtilsTest {
 
    @Test
    public void testCleanup_brokenMoreAndDeleted() throws Exception {
-      testCleanupBroken(200, "broken databroken databroken data", 3);
+      testCleanupBroken(200, "broken data broken data broken data", 3);
    }
 
    @Test
@@ -93,7 +93,7 @@ public class DumpUtilsTest {
       tmpDir.mkdirs();
       try {
          File dumpFile = File.createTempFile("dump", ".tmp", tmpDir);
-         Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile);
+         Dump<Bean> dump = new Dump<>(Bean.class, dumpFile);
 
          assertThat(dump._dumpFile).exists();
          assertThat(dump._metaFile).exists();
@@ -122,7 +122,7 @@ public class DumpUtilsTest {
       tmpDir.mkdirs();
       try {
          File dumpFile = File.createTempFile("dump", ".tmp", tmpDir);
-         Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile);
+         Dump<Bean> dump = new Dump<>(Bean.class, dumpFile);
          try {
             DumpUtils.deleteDumpFiles(dump);
             fail("IllegalArgumentException expected");
@@ -143,8 +143,8 @@ public class DumpUtilsTest {
       tmpDir.mkdirs();
       try {
          File dumpFile = File.createTempFile("dump", ".tmp", tmpDir);
-         Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile);
-         UniqueIndex<Bean> index = new UniqueIndex<Bean>(dump, "_id");
+         Dump<Bean> dump = new Dump<>(Bean.class, dumpFile);
+         UniqueIndex<Bean> index = new UniqueIndex<>(dump, "_id");
          dump.add(new Bean(1));
 
          DumpUtils.deleteDumpIndexFiles(dump);
@@ -169,7 +169,7 @@ public class DumpUtilsTest {
       tmpDir.mkdirs();
       try {
          File dumpFile = File.createTempFile("dump", ".tmp", tmpDir);
-         Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile);
+         Dump<Bean> dump = new Dump<>(Bean.class, dumpFile);
          dump.close();
          try {
             DumpUtils.deleteDumpIndexFiles(dump);
@@ -206,14 +206,14 @@ public class DumpUtilsTest {
    private Dump<Bean> createDestDump() {
       Dump<Bean> dest;
       File destFile = new File("DumpUtilsTest-destination.dmp");
-      dest = new Dump<Bean>(Bean.class, destFile);
+      dest = new Dump<>(Bean.class, destFile);
       return dest;
    }
 
    private Dump<Bean> createSourceDump() throws IOException {
       Dump<Bean> source;
       File sourceFile = new File("DumpUtilsTest-source.dmp");
-      source = new Dump<Bean>(Bean.class, sourceFile);
+      source = new Dump<>(Bean.class, sourceFile);
 
       for ( int i = 0; i < NUMBER_OF_INSTANCES; i++ ) {
          source.add(new Bean(i));
@@ -255,7 +255,7 @@ public class DumpUtilsTest {
          raf.close();
 
          // re-open
-         source = new Dump<Bean>(Bean.class, sourceFile);
+         source = new Dump<>(Bean.class, sourceFile);
 
          dest = createDestDump();
 
