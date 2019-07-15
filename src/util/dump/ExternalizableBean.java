@@ -50,9 +50,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.temporal.TemporalField;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.EnumSet;
@@ -150,7 +148,7 @@ public interface ExternalizableBean extends Externalizable {
     *  This leads to a deep copy, but only for all fields annotated by @externalize(.). */
    default <T extends Externalizable> T cloneDeeply() {
       byte[] bytes = SingleTypeObjectOutputStream.writeSingleInstance(this);
-      ExternalizableBean clone = SingleTypeObjectInputStream.readSingleInstance(this.getClass(), bytes);
+      ExternalizableBean clone = SingleTypeObjectInputStream.readSingleInstance(getClass(), bytes);
       return (T)clone;
    }
 
@@ -158,8 +156,9 @@ public interface ExternalizableBean extends Externalizable {
     *  This means it does a deep equals operation, but ignores all fields/methods that are not
     *  externalized. */
    default <T extends Externalizable> boolean deepEquals( T other ) {
-      if ( other == null )
+      if ( other == null ) {
          return false;
+      }
       byte[] bytes = SingleTypeObjectOutputStream.writeSingleInstance(this);
       byte[] otherBytes = SingleTypeObjectOutputStream.writeSingleInstance(other);
       return Arrays.equals(bytes, otherBytes);
@@ -1160,6 +1159,18 @@ public interface ExternalizableBean extends Externalizable {
    @interface externalizationPadding {
 
       short sizeModulo();
+   }
+   
+   /**
+    * By adding this annotation to a class implementing ExternalizableBean, you can make certain, that a dump with a
+    * different version than the current one will not be opened. The old dump will be renamed and a new dump file
+    * will be created.
+    */
+   @Retention(RetentionPolicy.RUNTIME)
+   @Target({ ElementType.TYPE })
+   @interface externalizationVersion {
+
+      int value();
    }
 
    /**

@@ -47,6 +47,7 @@ import gnu.trove.list.array.TByteArrayList;
 import gnu.trove.set.TLongSet;
 import gnu.trove.set.hash.TLongHashSet;
 import util.collections.SoftLRUCache;
+import util.dump.ExternalizableBean.externalizationVersion;
 import util.dump.UniqueIndex.DuplicateKeyException;
 import util.dump.sort.InfiniteSorter;
 import util.dump.stream.AesCrypter;
@@ -115,15 +116,15 @@ public class Dump<E> implements DumpInput<E> {
       }));
    }
 
-   static byte[] readDictionaryFromMeta( File compressionDictionaryFile ) {
+   static byte[] readDictionary( File compressionDictionaryFile ) {
       if ( !compressionDictionaryFile.exists() ) {
          return null;
       }
       try {
-         RandomAccessFile metaRAF = new RandomAccessFile(compressionDictionaryFile, "rw");
-         int length = metaRAF.readInt();
+         RandomAccessFile dictRAF = new RandomAccessFile(compressionDictionaryFile, "rw");
+         int length = dictRAF.readInt();
          byte[] dict = new byte[length];
-         metaRAF.readFully(dict);
+         dictRAF.readFully(dict);
          return dict;
       }
       catch ( Exception e ) {
@@ -171,7 +172,8 @@ public class Dump<E> implements DumpInput<E> {
    ThreadLocal<Long> _lastItemPos = new LongThreadLocal();
 
    /** incremented on each write operation */
-   long _sequence = (long)(Math.random() * 1000000);
+   long                _sequence = (long)(Math.random() * 1000000);
+   Map<String, String> _metaData = new ConcurrentHashMap<>();
 
    final EnumSet<DumpAccessFlag> _mode;
 
@@ -203,7 +205,7 @@ public class Dump<E> implements DumpInput<E> {
     */
    public Dump( Class<E> beanClass, File dumpFile, Compression compression ) {
       this(beanClass, new SingleTypeObjectStreamProvider(beanClass, compression, null,
-         readDictionaryFromMeta(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, false, DEFAULT_MODE);
+         readDictionary(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, false, DEFAULT_MODE);
    }
 
    public Dump( Class<E> beanClass, File dumpFile, AesCrypter crypter ) {
@@ -216,7 +218,7 @@ public class Dump<E> implements DumpInput<E> {
     */
    public Dump( Class<E> beanClass, File dumpFile, Compression compression, Iterable<E> dictInputProvider ) {
       this(beanClass, new SingleTypeObjectStreamProvider(beanClass, compression, dictInputProvider,
-         readDictionaryFromMeta(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, false, DEFAULT_MODE);
+         readDictionary(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, false, DEFAULT_MODE);
    }
 
    /**
@@ -258,6 +260,13 @@ public class Dump<E> implements DumpInput<E> {
       OPENED_DUMPS.add(this);
       _cacheSize = cacheSize;
       try {
+         checkVersion();
+
+         externalizationVersion version = (externalizationVersion)_beanClass.getAnnotation(externalizationVersion.class);
+         if ( version != null ) {
+            _metaData.put("externalizationVersion", "" + version.value());
+         }
+
          if ( !isReadonly() && !_mode.contains(DumpAccessFlag.shared) ) {
             // the lock is released as soon as the RandomAccessFile is closed (stackoverflow.com/questions/421833)
             acquireFileLock();
@@ -281,7 +290,7 @@ public class Dump<E> implements DumpInput<E> {
          _reader = new DumpReader<>(_dumpFile, false, _streamProvider);
 
          initMeta();
-         writeDictionaryToMeta();
+         writeDictionary();
 
          _updateByteOutput = new ByteArrayOutputStream(1024);
          _updateOut = _streamProvider.createObjectOutput(_updateByteOutput);
@@ -624,6 +633,10 @@ public class Dump<E> implements DumpInput<E> {
       return _outputStream._n;
    }
 
+   public String getMetaValue( String key ) {
+      return _metaData.get(key);
+   }
+
    public EnumSet<DumpAccessFlag> getMode() {
       return EnumSet.copyOf(_mode);
    }
@@ -669,6 +682,11 @@ public class Dump<E> implements DumpInput<E> {
     */
    public void setCache( @Nullable Map<Long, byte[]> cache ) {
       _cache = cache;
+   }
+
+   public void setMetaValue( String key, String value ) throws IOException {
+      _metaData.put(key, value);
+      writeMeta();
    }
 
    public void setWillBeClosedDuringShutdown( boolean willBeClosedDuringShutdown ) {
@@ -942,6 +960,18 @@ public class Dump<E> implements DumpInput<E> {
       if ( _metaFile.exists() && _metaFile.length() >= 8 ) {
          getMetaRAF().seek(0);
          _sequence = getMetaRAF().readLong();
+
+         try {
+            while ( true ) {
+               String key = getMetaRAF().readUTF();
+               String value = getMetaRAF().readUTF();
+               _metaData.put(key, value);
+            }
+         }
+         catch ( EOFException e ) {
+            // expected behaviour
+         }
+
       }
    }
 
@@ -1001,7 +1031,7 @@ public class Dump<E> implements DumpInput<E> {
       _indexes.remove(index);
    }
 
-   void writeDictionaryToMeta() throws IOException {
+   void writeDictionary() throws IOException {
       byte[] dictionary = _streamProvider.getStaticCompressionDictionary();
       if ( dictionary != null ) {
          RandomAccessFile metaRAF = new RandomAccessFile(_compressionDictionaryFile, "rw");
@@ -1015,12 +1045,47 @@ public class Dump<E> implements DumpInput<E> {
    void writeMeta() throws IOException {
       getMetaRAF().seek(0);
       getMetaRAF().writeLong(_sequence);
+
+      for ( Map.Entry<String, String> e : _metaData.entrySet() ) {
+         getMetaRAF().writeUTF(e.getKey());
+         getMetaRAF().writeUTF(e.getValue());
+      }
    }
 
    private void appendNextItemPos( byte[] bytes, byte[] nextItemPos ) {
       int l = bytes.length;
       for ( int i = 1, length = nextItemPos.length; i <= length; i++ ) {
          bytes[l - i] = nextItemPos[length - i];
+      }
+   }
+
+   private void checkVersion() throws IOException {
+      externalizationVersion version = (externalizationVersion)_beanClass.getAnnotation(externalizationVersion.class);
+      if ( version != null ) {
+         int newVersion = version.value();
+         initMeta();
+
+         String dumpVersionString = _metaData.get("externalizationVersion");
+         int dumpVersion = dumpVersionString == null ? 0 : Integer.parseInt(dumpVersionString);
+         if ( dumpVersion != newVersion ) {
+            _log.warn("externalizationVersion in dump {} does not match current version {}, will rename old dump files", dumpVersion, newVersion);
+            File oldFileName = new File(_dumpFile.getAbsolutePath() + ".version" + dumpVersion);
+            boolean success = _dumpFile.renameTo(oldFileName);
+            if ( !success ) {
+               throw new RuntimeException("Failed to rename old dump file");
+            }
+            if ( _deletionsFile.exists() ) {
+               success = _deletionsFile.renameTo(new File(_deletionsFile.getAbsolutePath() + ".version" + dumpVersion));
+               if ( !success ) {
+                  throw new RuntimeException("Failed to rename old dump deletions file");
+               }
+            }
+            _log.warn("renamed old dump file to " + oldFileName);
+         }
+
+         // reset meta
+         _sequence = (long)(Math.random() * 1000000);
+         _metaData.clear();
       }
    }
 
@@ -1082,7 +1147,10 @@ public class Dump<E> implements DumpInput<E> {
    /**
     * This enum is used to control the access mode of a Dump instance.
     */
-   public enum DumpAccessFlag {
+   public enum DumpAccessFlag
+
+
+   {
       /** append new beans <b>at the end</b> of the dump  */
       add, //
       /** allow beans to be updated in case where the bean <b>length stays the same</b> */
@@ -1101,6 +1169,7 @@ public class Dump<E> implements DumpInput<E> {
        */
       shared, //
    }
+
 
    /**
     * the class implements a comparator to order the objects by their positions (ascending) in order to provide fast batch updates
