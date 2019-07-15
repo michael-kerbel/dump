@@ -17,6 +17,7 @@ import org.junit.Test;
 import junit.framework.Assert;
 import util.dump.Dump.DumpAccessFlag;
 import util.dump.Dump.ElementAndPosition;
+import util.dump.ExternalizableBean.externalizationVersion;
 import util.dump.ExternalizableBeanTest.TestBeanPadding;
 
 
@@ -112,6 +113,18 @@ public class DumpTest {
             Assert.assertNotNull("Element returned during iteration of empty dump", bean);
          }
       }
+   }
+
+   @Test
+   public void testMetaValue() throws Exception {
+      File dumpFile = new File("DumpTest.dmp");
+      Dump<Bean> dump = new Dump<>(Bean.class, dumpFile);
+      dump.setMetaValue("test", "test");
+      assertThat(dump.getMetaValue("test")).isEqualTo("test");
+      dump.close();
+      dump = new Dump<>(Bean.class, dumpFile);
+      assertThat(dump.getMetaValue("test")).isEqualTo("test");
+      dump.close();
    }
 
    @Test
@@ -245,6 +258,35 @@ public class DumpTest {
       }
    }
 
+   @Test
+   public void testVersionUpdate() throws Exception {
+      File dumpFile = new File("DumpTest.dmp");
+      Dump<Bean> dump = new Dump<>(Bean.class, dumpFile);
+      dump.add(new Bean(1));
+      dump.close();
+
+      Dump<BeanVersion2> v2Dump = new Dump<>(BeanVersion2.class, dumpFile);
+      File oldDumpFile = new File("DumpTest.dmp.version0");
+      assertThat(oldDumpFile).as("Dump was not renamed after version upgrade").exists();
+      int n = 0;
+      for ( BeanVersion2 b : v2Dump ) {
+         n++;
+      }
+      assertThat(n).as("Dump was not renamed after version upgrade").isEqualTo(0);
+      v2Dump.add(new BeanVersion2(1));
+      v2Dump.close();
+
+      Dump<BeanVersion3> v3Dump = new Dump<>(BeanVersion3.class, dumpFile);
+      oldDumpFile = new File("DumpTest.dmp.version2");
+      assertThat(oldDumpFile).as("Dump was not renamed after version upgrade").exists();
+      n = 0;
+      for ( BeanVersion3 b : v3Dump ) {
+         n++;
+      }
+      assertThat(n).as("Dump was not renamed after version upgrade").isEqualTo(0);
+      v3Dump.close();
+   }
+
 
    public static class Bean implements ExternalizableBean {
 
@@ -255,6 +297,34 @@ public class DumpTest {
       public Bean() {}
 
       public Bean( int id ) {
+         _id = id;
+      }
+   }
+
+   @externalizationVersion(2)
+   public static class BeanVersion2 implements ExternalizableBean {
+
+      @externalize(1)
+      int _id;
+
+
+      public BeanVersion2() {}
+
+      public BeanVersion2( int id ) {
+         _id = id;
+      }
+   }
+
+   @externalizationVersion(3)
+   public static class BeanVersion3 implements ExternalizableBean {
+
+      @externalize(1)
+      int _id;
+
+
+      public BeanVersion3() {}
+
+      public BeanVersion3( int id ) {
          _id = id;
       }
    }
