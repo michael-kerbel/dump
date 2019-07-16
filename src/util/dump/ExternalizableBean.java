@@ -143,7 +143,6 @@ public interface ExternalizableBean extends Externalizable {
 
    long serialVersionUID = -1816997029156670474L;
 
-
    /** Clones this instance by externalizing it to bytes and reading these bytes again.
     *  This leads to a deep copy, but only for all fields annotated by @externalize(.). */
    default <T extends Externalizable> T cloneDeeply() {
@@ -199,13 +198,12 @@ public interface ExternalizableBean extends Externalizable {
                   } else if ( fieldTypeId == FieldType.EnumSetOld._id && ft._id == FieldType.EnumSet._id ) {
                      ft = FieldType.EnumSetOld;
                   } else if ( CLASS_CHANGED_INCOMPATIBLY.get(getClass()) == null ) {
-                     LoggerFactory.getLogger(getClass())
-                           .error("The field type of index " + fieldIndex + //
-                              " in " + getClass().getSimpleName() + //
-                              " appears to have changed from " + FieldType.forId(fieldTypeId) + //
-                              " (version in dump) to " + ft + " (current class version)." + //
-                              " This change breaks downward compatibility, see JavaDoc for details." + //
-                              " This warning will appear only once.");
+                     LoggerFactory.getLogger(getClass()).error("The field type of index " + fieldIndex + //
+                           " in " + getClass().getSimpleName() + //
+                           " appears to have changed from " + FieldType.forId(fieldTypeId) + //
+                           " (version in dump) to " + ft + " (current class version)." + //
+                           " This change breaks downward compatibility, see JavaDoc for details." + //
+                           " This warning will appear only once.");
                      CLASS_CHANGED_INCOMPATIBLY.put(getClass(), Boolean.TRUE);
 
                      // read it without exception, but ignore the data
@@ -415,7 +413,7 @@ public interface ExternalizableBean extends Externalizable {
                }
                break;
             }
-            case LocalDateTime:{
+            case LocalDateTime: {
                LocalDateTime d = null;
                boolean isNotNull = in.readBoolean();
                if ( isNotNull ) {
@@ -428,7 +426,7 @@ public interface ExternalizableBean extends Externalizable {
                }
                break;
             }
-            case ZonedDateTime:{
+            case ZonedDateTime: {
                ZonedDateTime d = null;
                boolean isNotNull = in.readBoolean();
                if ( isNotNull ) {
@@ -1146,7 +1144,6 @@ public interface ExternalizableBean extends Externalizable {
       }
    }
 
-
    /**
     * By adding this annotation to a class implementing ExternalizableBean, you can make certain, that the byte[]
     * created by externalizing has a size where <code>size%sizeModulo==0</code>, i.e. it is divisible by
@@ -1160,7 +1157,8 @@ public interface ExternalizableBean extends Externalizable {
 
       short sizeModulo();
    }
-   
+
+
    /**
     * By adding this annotation to a class implementing ExternalizableBean, you can make certain, that a dump with a
     * different version than the current one will not be opened. The old dump will be renamed and a new dump file
@@ -1170,8 +1168,11 @@ public interface ExternalizableBean extends Externalizable {
    @Target({ ElementType.TYPE })
    @interface externalizationVersion {
 
-      int value();
+      OnIncompatibleVersion onIncompatibleVersion() default OnIncompatibleVersion.RenameDump;
+
+      int version();
    }
+
 
    /**
     * Annotating fields gives a better performance compared to methods. You can annotate even private fields.
@@ -1204,6 +1205,12 @@ public interface ExternalizableBean extends Externalizable {
        * If you need values bigger than 127, simply write (byte)200, that will work out fine.
        */
       byte value();
+   }
+
+
+   enum OnIncompatibleVersion {
+      DeleteDump,
+      RenameDump
    }
 
 }

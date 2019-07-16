@@ -97,7 +97,6 @@ public class Dump<E> implements DumpInput<E> {
    private static final Set<String> OPENED_DUMPPATHS = Collections.newSetFromMap(new ConcurrentHashMap<>());
    private static final Set<Dump>   OPENED_DUMPS     = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-
    static {
       Runtime.getRuntime().addShutdownHook(new Thread(() -> {
          for ( Dump openedDump : new HashSet<>(OPENED_DUMPS) ) {
@@ -106,7 +105,7 @@ public class Dump<E> implements DumpInput<E> {
             }
             try {
                _log.error("Dump instance " + openedDump.getDumpFile()
-                  + " was not closed correctly. This is a bug in its usage and might result in data loss! Closing it now...");
+                     + " was not closed correctly. This is a bug in its usage and might result in data loss! Closing it now...");
                openedDump.close();
             }
             catch ( IOException e ) {
@@ -133,14 +132,13 @@ public class Dump<E> implements DumpInput<E> {
       return null;
    }
 
-
-   final Class          _beanClass;
+   final Class _beanClass;
    ObjectStreamProvider _streamProvider;
-   final File           _dumpFile;
-   File                 _deletionsFile;
-   File                 _metaFile;
-   File                 _compressionDictionaryFile;
-   Set<DumpIndex<E>>    _indexes = new HashSet<>();
+   final File _dumpFile;
+   File              _deletionsFile;
+   File              _metaFile;
+   File              _compressionDictionaryFile;
+   Set<DumpIndex<E>> _indexes = new HashSet<>();
 
    DumpWriter<E>                 _writer;
    DumpReader<E>                 _reader;
@@ -148,7 +146,7 @@ public class Dump<E> implements DumpInput<E> {
    RandomAccessFile              _raf;
    ResettableBufferedInputStream _resettableBufferedInputStream;
    DataOutputStream              _deletionsOutput;
-   protected TLongSet            _deletedPositions = new TLongHashSet();
+   protected TLongSet _deletedPositions = new TLongHashSet();
 
    /** The keys are positions in the dump file and the values are the bytes of the serialized item stored there.
     * Appended to these bytes is a space efficient encoding (see <code>longToBytes(long)</code>) of the next
@@ -186,7 +184,6 @@ public class Dump<E> implements DumpInput<E> {
 
    Set<DeletionAwareDumpReader> _allOpenedDumpReaders = new HashSet<>();
 
-
    /**
     * Constructs a new Dump with <code>beanClass</code> as instance class. If the dump already exists, it will be re-opened.<p/>
     * A {@link SingleTypeObjectStreamProvider} using <code>beanClass</code> is created for your convenience. This implies, that you can only
@@ -205,7 +202,7 @@ public class Dump<E> implements DumpInput<E> {
     */
    public Dump( Class<E> beanClass, File dumpFile, Compression compression ) {
       this(beanClass, new SingleTypeObjectStreamProvider(beanClass, compression, null,
-         readDictionary(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, false, DEFAULT_MODE);
+            readDictionary(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, false, DEFAULT_MODE);
    }
 
    public Dump( Class<E> beanClass, File dumpFile, AesCrypter crypter ) {
@@ -218,7 +215,7 @@ public class Dump<E> implements DumpInput<E> {
     */
    public Dump( Class<E> beanClass, File dumpFile, Compression compression, Iterable<E> dictInputProvider ) {
       this(beanClass, new SingleTypeObjectStreamProvider(beanClass, compression, dictInputProvider,
-         readDictionary(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, false, DEFAULT_MODE);
+            readDictionary(new File(dumpFile.getAbsolutePath() + ".meta.compression-dictionary"))), dumpFile, DEFAULT_CACHE_SIZE, false, DEFAULT_MODE);
    }
 
    /**
@@ -254,18 +251,13 @@ public class Dump<E> implements DumpInput<E> {
             }
          }
          throw new IllegalStateException("There is already an opened Dump instance for file " + _dumpFile
-            + ". Having two instances is hazardous. Instantiation details of the older Dump:\n" + instantiationDetails);
+               + ". Having two instances is hazardous. Instantiation details of the older Dump:\n" + instantiationDetails);
       }
       OPENED_DUMPPATHS.add(_dumpFile.getPath());
       OPENED_DUMPS.add(this);
       _cacheSize = cacheSize;
       try {
          checkVersion();
-
-         externalizationVersion version = (externalizationVersion)_beanClass.getAnnotation(externalizationVersion.class);
-         if ( version != null ) {
-            _metaData.put("externalizationVersion", "" + version.value());
-         }
 
          if ( !isReadonly() && !_mode.contains(DumpAccessFlag.shared) ) {
             // the lock is released as soon as the RandomAccessFile is closed (stackoverflow.com/questions/421833)
@@ -290,6 +282,10 @@ public class Dump<E> implements DumpInput<E> {
          _reader = new DumpReader<>(_dumpFile, false, _streamProvider);
 
          initMeta();
+         externalizationVersion version = (externalizationVersion)_beanClass.getAnnotation(externalizationVersion.class);
+         if ( version != null ) {
+            _metaData.put("externalizationVersion", "" + version.version());
+         }
          writeDictionary();
 
          _updateByteOutput = new ByteArrayOutputStream(1024);
@@ -330,8 +326,8 @@ public class Dump<E> implements DumpInput<E> {
          }
          assertOpen();
          for ( DumpIndex<E> index : _indexes ) {
-            if ( index instanceof UniqueIndex && index.contains(((UniqueIndex)index).getKey(o))
-               && !index.getIndexType().equals(GroupedIndex.class.getSimpleName()) ) {
+            if ( index instanceof UniqueIndex && index.contains(((UniqueIndex)index).getKey(o)) && !index.getIndexType()
+                  .equals(GroupedIndex.class.getSimpleName()) ) {
                // check this before actually adding anything
                throw new DuplicateKeyException("Dump already contains an instance with the key " + ((UniqueIndex)index).getKey(o));
             }
@@ -512,7 +508,8 @@ public class Dump<E> implements DumpInput<E> {
     * constructor and the element at pos was retrieved recently.
     */
    @SuppressWarnings("UnnecessaryBoxing")
-   public @Nullable E get( long pos ) {
+   public @Nullable
+   E get( long pos ) {
       if ( !_mode.contains(DumpAccessFlag.read) ) {
          throw new AccessControlException("Get operation not allowed with current modes.");
       }
@@ -560,9 +557,10 @@ public class Dump<E> implements DumpInput<E> {
                   byte[] nextItemPos = longToBytes(_nextItemPos.get());
                   byte[] lastElementBytes = new byte[_resettableBufferedInputStream._lastElementBytesLength + nextItemPos.length];
                   System.arraycopy(_resettableBufferedInputStream._lastElementBytes, 0, lastElementBytes, 0,
-                     _resettableBufferedInputStream._lastElementBytesLength);
+                        _resettableBufferedInputStream._lastElementBytesLength);
                   appendNextItemPos(lastElementBytes, nextItemPos);
-                  _cache.put(Long.valueOf(pos), lastElementBytes); // ugly boxing of pos necessary here, since _cache is a regular Map - the cost of beauty is ugliness
+                  _cache.put(Long.valueOf(pos),
+                        lastElementBytes); // ugly boxing of pos necessary here, since _cache is a regular Map - the cost of beauty is ugliness
                }
                if ( _resettableBufferedInputStream._lastElementBytes.length > 64 * 1024 ) {
                   _resettableBufferedInputStream._lastElementBytes = new byte[1024];
@@ -613,7 +611,8 @@ public class Dump<E> implements DumpInput<E> {
       return _dumpFile;
    }
 
-   public @Nonnull DumpReader<E> getDumpReader() {
+   public @Nonnull
+   DumpReader<E> getDumpReader() {
       assertOpen();
       try {
          flush();
@@ -657,7 +656,8 @@ public class Dump<E> implements DumpInput<E> {
     */
    @SuppressWarnings("resource")
    @Override
-   public @Nonnull DumpIterator<E> iterator() {
+   public @Nonnull
+   DumpIterator<E> iterator() {
       assertOpen();
       try {
          flush();
@@ -752,7 +752,7 @@ public class Dump<E> implements DumpInput<E> {
             E oldItem = get(pos);
             if ( oldItem == null ) {
                throw new RuntimeException(
-                  "Failed to delete item on position " + pos + ". There was no instance on that position - maybe it was already deleted?");
+                     "Failed to delete item on position " + pos + ". There was no instance on that position - maybe it was already deleted?");
             }
             byte[] oldBytes = _cache.get(pos);
 
@@ -958,20 +958,15 @@ public class Dump<E> implements DumpInput<E> {
 
    void initMeta() throws IOException {
       if ( _metaFile.exists() && _metaFile.length() >= 8 ) {
-         getMetaRAF().seek(0);
-         _sequence = getMetaRAF().readLong();
+         RandomAccessFile metaRAF = getMetaRAF();
+         metaRAF.seek(0);
+         _sequence = metaRAF.readLong();
 
-         try {
-            while ( true ) {
-               String key = getMetaRAF().readUTF();
-               String value = getMetaRAF().readUTF();
-               _metaData.put(key, value);
-            }
+         while ( metaRAF.getFilePointer() < metaRAF.length() ) {
+            String key = metaRAF.readUTF();
+            String value = metaRAF.readUTF();
+            _metaData.put(key, value);
          }
-         catch ( EOFException e ) {
-            // expected behaviour
-         }
-
       }
    }
 
@@ -1062,30 +1057,41 @@ public class Dump<E> implements DumpInput<E> {
    private void checkVersion() throws IOException {
       externalizationVersion version = (externalizationVersion)_beanClass.getAnnotation(externalizationVersion.class);
       if ( version != null ) {
-         int newVersion = version.value();
+         int newVersion = version.version();
          initMeta();
 
          String dumpVersionString = _metaData.get("externalizationVersion");
          int dumpVersion = dumpVersionString == null ? 0 : Integer.parseInt(dumpVersionString);
          if ( dumpVersion != newVersion ) {
-            _log.warn("externalizationVersion in dump {} does not match current version {}, will rename old dump files", dumpVersion, newVersion);
-            File oldFileName = new File(_dumpFile.getAbsolutePath() + ".version" + dumpVersion);
-            boolean success = _dumpFile.renameTo(oldFileName);
-            if ( !success ) {
-               throw new RuntimeException("Failed to rename old dump file");
+            switch ( version.onIncompatibleVersion() ) {
+            case RenameDump: {
+               _log.warn("externalizationVersion in dump {} does not match current version {}, will rename old dump files", dumpVersion, newVersion);
+               renameFile(_dumpFile, new File(_dumpFile.getAbsolutePath() + ".version" + dumpVersion));
+               renameFile(_deletionsFile, new File(_deletionsFile.getAbsolutePath() + ".version" + dumpVersion));
+               break;
             }
-            if ( _deletionsFile.exists() ) {
-               success = _deletionsFile.renameTo(new File(_deletionsFile.getAbsolutePath() + ".version" + dumpVersion));
-               if ( !success ) {
-                  throw new RuntimeException("Failed to rename old dump deletions file");
-               }
+            case DeleteDump: {
+               _log.warn("externalizationVersion in dump {} does not match current version {}, will delete old dump files", dumpVersion, newVersion);
+               deleteFile(_dumpFile);
+               deleteFile(_deletionsFile);
+               break;
             }
-            _log.warn("renamed old dump file to " + oldFileName);
+            }
          }
 
          // reset meta
          _sequence = (long)(Math.random() * 1000000);
          _metaData.clear();
+      }
+   }
+
+   private void deleteFile( File file ) throws IOException {
+      if ( !file.exists() ) {
+         return;
+      }
+      boolean success = file.delete();
+      if ( !success ) {
+         throw new IOException("Failed to delete file " + file);
       }
    }
 
@@ -1143,14 +1149,21 @@ public class Dump<E> implements DumpInput<E> {
       return bytes.toArray();
    }
 
+   private void renameFile( File currentFile, File newFile ) throws IOException {
+      if ( !currentFile.exists() ) {
+         return;
+      }
+      boolean success = currentFile.renameTo(newFile);
+      if ( !success ) {
+         throw new IOException("Failed to rename file " + currentFile);
+      }
+      _log.info("renamed file " + currentFile + " to " + newFile);
+   }
 
    /**
     * This enum is used to control the access mode of a Dump instance.
     */
-   public enum DumpAccessFlag
-
-
-   {
+   public enum DumpAccessFlag {
       /** append new beans <b>at the end</b> of the dump  */
       add, //
       /** allow beans to be updated in case where the bean <b>length stays the same</b> */
@@ -1180,7 +1193,6 @@ public class Dump<E> implements DumpInput<E> {
       private final D    _element;
       private final long _position;
 
-
       public ElementAndPosition( D element, long position ) {
          _element = element;
          _position = position;
@@ -1200,10 +1212,12 @@ public class Dump<E> implements DumpInput<E> {
       }
    }
 
+
    public static abstract class PositionIteratorCallback<E> {
 
       public abstract void element( E o, long pos );
    }
+
 
    static class ResettableBufferedInputStream extends InputStream {
 
@@ -1254,7 +1268,6 @@ public class Dump<E> implements DumpInput<E> {
 
       FileInputStream _fileInputStream;
 
-
       /**
        * Creates a <code>BufferedInputStream</code>
        * with the specified buffer size,
@@ -1295,7 +1308,7 @@ public class Dump<E> implements DumpInput<E> {
        * or skip() invocations will throw an IOException.
        * Closing a previously closed stream has no effect.
        *
-       * @exception  IOException  if an I/O error occurs.
+       * @exception IOException  if an I/O error occurs.
        */
       @Override
       public void close() throws IOException {
@@ -1328,7 +1341,7 @@ public class Dump<E> implements DumpInput<E> {
        * method of <code>BufferedInputStream</code> returns
        * <code>true</code>.
        *
-       * @return  a <code>boolean</code> indicating if this stream type supports
+       * @return a <code>boolean</code> indicating if this stream type supports
        *          the <code>mark</code> and <code>reset</code> methods.
        * @see     java.io.InputStream#mark(int)
        * @see     java.io.InputStream#reset()
@@ -1343,9 +1356,9 @@ public class Dump<E> implements DumpInput<E> {
        * the general contract of the <code>read</code>
        * method of <code>InputStream</code>.
        *
-       * @return     the next byte of data, or <code>-1</code> if the end of the
+       * @return the next byte of data, or <code>-1</code> if the end of the
        *             stream is reached.
-       * @exception  IOException  if this input stream has been closed by
+       * @exception IOException  if this input stream has been closed by
        *              invoking its {@link #close()} method,
        *              or an I/O error occurs.
        */
@@ -1401,9 +1414,9 @@ public class Dump<E> implements DumpInput<E> {
        * @param      b     destination buffer.
        * @param      off   offset at which to start storing bytes.
        * @param      len   maximum number of bytes to read.
-       * @return     the number of bytes read, or <code>-1</code> if the end of
+       * @return the number of bytes read, or <code>-1</code> if the end of
        *             the stream has been reached.
-       * @exception  IOException  if this input stream has been closed by
+       * @exception IOException  if this input stream has been closed by
        *              invoking its {@link #close()} method,
        *              or an I/O error occurs.
        */
@@ -1443,7 +1456,7 @@ public class Dump<E> implements DumpInput<E> {
 
       int read0( byte[] b, int off, int len ) throws IOException {
          int n = 0;
-         for ( ;; ) {
+         for ( ; ; ) {
             int nread = read1(b, off + n, len - n);
             if ( nread <= 0 ) {
                int r = (n == 0) ? nread : n;
@@ -1554,12 +1567,12 @@ public class Dump<E> implements DumpInput<E> {
       }
    }
 
-   class DeletionAwareDumpReader extends DumpReader<E>implements DumpIterator<E> {
+
+   class DeletionAwareDumpReader extends DumpReader<E> implements DumpIterator<E> {
 
       ResettableBufferedInputStream _positionAwareInputStream;
       long                          _lastPos;
       long                          _maxPos;
-
 
       public DeletionAwareDumpReader( File dumpFile, ObjectStreamProvider streamProvider ) throws IOException {
          this(dumpFile, streamProvider, _outputStream._n);
@@ -1615,7 +1628,8 @@ public class Dump<E> implements DumpInput<E> {
       }
 
       @Override
-      public @Nonnull DumpIterator<E> iterator() {
+      public @Nonnull
+      DumpIterator<E> iterator() {
          return this;
       }
 
@@ -1632,12 +1646,12 @@ public class Dump<E> implements DumpInput<E> {
       }
    }
 
+
    class PositionAwareOutputStream extends OutputStream {
 
       long _n;
 
       private final OutputStream _out;
-
 
       public PositionAwareOutputStream( OutputStream out, long n ) {
          _out = out;
@@ -1672,6 +1686,7 @@ public class Dump<E> implements DumpInput<E> {
          _n++;
       }
    }
+
 
    private final class LongThreadLocal extends ThreadLocal<Long> {
 
