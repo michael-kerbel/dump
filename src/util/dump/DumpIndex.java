@@ -4,6 +4,7 @@ import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.Externalizable;
 import java.io.File;
 import java.io.FileInputStream;
@@ -15,6 +16,8 @@ import java.io.RandomAccessFile;
 import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,7 +45,6 @@ public abstract class DumpIndex<E> implements Closeable {
 
    private static final Logger LOG = LoggerFactory.getLogger(DumpIndex.class);
 
-
    public static List<IndexMeta> discoverIndexes( final Dump dump ) {
       File[] indexFiles = dump.getDumpFile().getParentFile().listFiles(new FilenameFilter() {
 
@@ -52,7 +54,7 @@ public abstract class DumpIndex<E> implements Closeable {
          }
       });
 
-      List<IndexMeta> metas = new ArrayList<IndexMeta>();
+      List<IndexMeta> metas = new ArrayList<>();
       for ( File lookupFile : indexFiles ) {
          File metaFile = new File(dump.getDumpFile().getParentFile(), lookupFile.getName().replaceAll("\\.[^.]*$", ".meta"));
          IndexMeta indexMeta = new IndexMeta();
@@ -78,8 +80,22 @@ public abstract class DumpIndex<E> implements Closeable {
             long dumpSequence = in.readLong();
             String beanClassName = in.readUTF();
             String metaIndexType = in.readUTF();
-            boolean valid = dumpSequence == dump._sequence && dump._beanClass.getName().equals(beanClassName)
-               && (indexType == null || indexType.equals(metaIndexType));
+            if ( indexMeta != null ) {
+               try {
+                  //noinspection InfiniteLoopStatement
+                  while ( true ) {
+                     String key = in.readUTF();
+                     String value = in.readUTF();
+                     indexMeta._metaData.put(key, value);
+                  }
+               }
+               catch ( EOFException e ) {
+                  // expected
+               }
+            }
+
+            boolean valid =
+                  dumpSequence == dump._sequence && dump._beanClass.getName().equals(beanClassName) && (indexType == null || indexType.equals(metaIndexType));
             if ( indexMeta != null ) {
                indexMeta._beanClassName = beanClassName;
                indexMeta._dumpSequence = dumpSequence;
@@ -102,30 +118,28 @@ public abstract class DumpIndex<E> implements Closeable {
       }
    }
 
-
    protected final Dump<E> _dump;
 
-   private final File            _lookupFile;
-   private final File            _metaFile;
-   private RandomAccessFile      _metaRaf;
-   protected DataOutputStream    _lookupOutputStream;
-   protected final FieldAccessor _fieldAccessor;
-   protected final boolean       _fieldIsInt;
-   protected final boolean       _fieldIsIntObject;
-   protected final boolean       _fieldIsLong;
-   protected final boolean       _fieldIsLongObject;
-   protected final boolean       _fieldIsString;
-   protected final boolean       _fieldIsExternalizable;
+   private final   File             _lookupFile;
+   private final   File             _metaFile;
+   private         RandomAccessFile _metaRaf;
+   protected       DataOutputStream _lookupOutputStream;
+   protected final FieldAccessor    _fieldAccessor;
+   protected final boolean          _fieldIsInt;
+   protected final boolean          _fieldIsIntObject;
+   protected final boolean          _fieldIsLong;
+   protected final boolean          _fieldIsLongObject;
+   protected final boolean          _fieldIsString;
+   protected final boolean          _fieldIsExternalizable;
 
-   private final File       _updatesFile;
-   private DataOutputStream _updatesOutput;
-
+   private final File             _updatesFile;
+   private       DataOutputStream _updatesOutput;
 
    /**
-      * Creates an index and adds it to the {@link Dump}.
-      * @param dump the parent dump to add this index to
-      * @param fieldAccessor the accessor to the field containing the index key
-      */
+    * Creates an index and adds it to the {@link Dump}.
+    * @param dump the parent dump to add this index to
+    * @param fieldAccessor the accessor to the field containing the index key
+    */
    public DumpIndex( Dump<E> dump, FieldAccessor fieldAccessor ) {
       this(dump, fieldAccessor, null);
    }
@@ -266,7 +280,7 @@ public abstract class DumpIndex<E> implements Closeable {
     */
    protected void createOrLoad() {
 
-      boolean indexInvalid = !_lookupFile.exists() || (_lookupFile.length() == 0 && _lookupFile.isFile())|| !checkMeta();
+      boolean indexInvalid = !_lookupFile.exists() || (_lookupFile.length() == 0 && _lookupFile.isFile()) || !checkMeta();
       if ( indexInvalid ) {
          deleteAllIndexFiles();
       }
@@ -299,9 +313,9 @@ public abstract class DumpIndex<E> implements Closeable {
          }
       });
       for ( File f : indexFiles ) {
-         if ( f.isDirectory() )
+         if ( f.isDirectory() ) {
             IOUtils.deleteDir(f);
-         else if ( !f.delete() ) {
+         } else if ( !f.delete() ) {
             LOG.error("Failed to delete invalid index file " + f);
          }
       }
@@ -339,6 +353,15 @@ public abstract class DumpIndex<E> implements Closeable {
       return _metaFile;
    }
 
+   protected RandomAccessFile getMetaRAF() throws FileNotFoundException {
+      synchronized ( this ) {
+         if ( _metaRaf == null ) {
+            _metaRaf = new RandomAccessFile(_metaFile, "rw");
+         }
+         return _metaRaf;
+      }
+   }
+
    protected Object getObjectKey( E o ) {
       Object key;
       try {
@@ -372,10 +395,11 @@ public abstract class DumpIndex<E> implements Closeable {
       initLookupMap();
 
       if ( !_dump.getDumpFile().exists() || _dump.getDumpFile().length() == 0 ) {
-         if ( _lookupFile.isDirectory() )
+         if ( _lookupFile.isDirectory() ) {
             IOUtils.deleteDir(_lookupFile);
-         else
+         } else {
             _lookupFile.delete();
+         }
       }
 
       // make sure there are no other threads/processes that open/create the index
@@ -428,10 +452,10 @@ public abstract class DumpIndex<E> implements Closeable {
          if ( !_fieldIsInt && !_fieldIsLong && !_fieldIsString ) {
             if ( _fieldIsExternalizable ) {
                _lookupOutputStream = new SingleTypeObjectOutputStream(new BufferedOutputStream(new FileOutputStream(_lookupFile, true)),
-                  _fieldAccessor.getType());
+                     _fieldAccessor.getType());
             } else {
                _lookupOutputStream = new ExternalizableObjectOutputStream(
-                  new DataOutputStream(new BufferedOutputStream(new FileOutputStream(_lookupFile, true))));
+                     new DataOutputStream(new BufferedOutputStream(new FileOutputStream(_lookupFile, true))));
             }
          } else {
             _lookupOutputStream = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(_lookupFile, true)));
@@ -471,24 +495,14 @@ public abstract class DumpIndex<E> implements Closeable {
 
    abstract void update( long pos, E oldItem, E newItem );
 
-   private RandomAccessFile getMetaRAF() throws FileNotFoundException {
-      synchronized ( this ) {
-         if ( _metaRaf == null ) {
-            _metaRaf = new RandomAccessFile(_metaFile, "rw");
-         }
-         return _metaRaf;
-      }
-   }
-
-
    public static class IndexMeta {
 
-      long    _dumpSequence;
-      String  _beanClassName;
-      String  _indexType;
-      String  _fieldAccessorName;
-      boolean _valid;
-
+      long                _dumpSequence;
+      String              _beanClassName;
+      String              _indexType;
+      String              _fieldAccessorName;
+      boolean             _valid;
+      Map<String, String> _metaData = new ConcurrentHashMap<>();
 
       public String getFieldAccessorName() {
          return _fieldAccessorName;
@@ -496,6 +510,10 @@ public abstract class DumpIndex<E> implements Closeable {
 
       public String getIndexType() {
          return _indexType;
+      }
+
+      public String getMetaValue( String key ) {
+         return _metaData.get(key);
       }
 
       public boolean isValid() {
