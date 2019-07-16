@@ -1,6 +1,7 @@
 package util.dump;
 
 import static org.fest.assertions.Assertions.assertThat;
+import static util.dump.ExternalizableBean.OnIncompatibleVersion.DeleteDump;
 
 import java.io.File;
 import java.io.FileFilter;
@@ -84,7 +85,8 @@ public class DumpTest {
          dump.get(0);
          Assert.fail();
       }
-      catch ( AccessControlException e ) {}
+      catch ( AccessControlException e ) {
+      }
       finally {
          dump.close();
       }
@@ -284,15 +286,22 @@ public class DumpTest {
          n++;
       }
       assertThat(n).as("Dump was not renamed after version upgrade").isEqualTo(0);
+      v3Dump.add(new BeanVersion3(1));
       v3Dump.close();
-   }
 
+      Dump<BeanVersion4> v4Dump = new Dump<>(BeanVersion4.class, dumpFile);
+      n = 0;
+      for ( BeanVersion4 b : v4Dump ) {
+         n++;
+      }
+      assertThat(n).as("Dump was not deleted after version upgrade").isEqualTo(0);
+      v4Dump.close();
+   }
 
    public static class Bean implements ExternalizableBean {
 
       @externalize(1)
       int _id;
-
 
       public Bean() {}
 
@@ -301,12 +310,12 @@ public class DumpTest {
       }
    }
 
-   @externalizationVersion(2)
+
+   @externalizationVersion(version = 2)
    public static class BeanVersion2 implements ExternalizableBean {
 
       @externalize(1)
       int _id;
-
 
       public BeanVersion2() {}
 
@@ -315,16 +324,30 @@ public class DumpTest {
       }
    }
 
-   @externalizationVersion(3)
+
+   @externalizationVersion(version = 3)
    public static class BeanVersion3 implements ExternalizableBean {
 
       @externalize(1)
       int _id;
 
-
       public BeanVersion3() {}
 
       public BeanVersion3( int id ) {
+         _id = id;
+      }
+   }
+
+
+   @externalizationVersion(version = 4, onIncompatibleVersion = DeleteDump)
+   public static class BeanVersion4 implements ExternalizableBean {
+
+      @externalize(1)
+      int _id;
+
+      public BeanVersion4() {}
+
+      public BeanVersion4( int id ) {
          _id = id;
       }
    }
