@@ -18,14 +18,14 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import util.dump.DumpIndex.IndexMeta;
 import util.io.IOUtils;
 
 
 public class SearchIndexTest {
 
-   private static File         _tmpdir;
+   private static       File   _tmpdir;
    private static final String DUMP_FILENAME = "DumpTest.dmp";
-
 
    @BeforeClass
    public static void setUpTmpdir() throws IOException {
@@ -43,9 +43,9 @@ public class SearchIndexTest {
       File[] dumpFile = _tmpdir.listFiles(f -> f.getName().startsWith("DumpTest."));
       if ( dumpFile != null ) {
          for ( File df : dumpFile ) {
-            if ( df.isDirectory() )
+            if ( df.isDirectory() ) {
                IOUtils.deleteDir(df);
-            else if ( !df.delete() ) {
+            } else if ( !df.delete() ) {
                System.out.println("Failed to delete old dump file " + df);
             }
          }
@@ -149,6 +149,37 @@ public class SearchIndexTest {
       }
    }
 
+   @Test
+   public void testVersion() throws Exception {
+      File dumpFile = new File(_tmpdir, DUMP_FILENAME);
+
+      try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile)) {
+
+         SearchIndex<Bean> index = SearchIndex.with(dump, "_idLong", ( doc, o ) -> doc.add(new TextField("data", o._data, Store.NO))).withVersion(1).build();
+
+         Bean firstBean = new Bean(1, "first row");
+         dump.add(firstBean);
+         index.flushMeta();
+
+         IndexMeta indexMeta = new IndexMeta();
+         DumpIndex.checkMeta(dump, index.getMetaFile(), index.getIndexType(), indexMeta);
+         assertThat(indexMeta.getMetaValue("searchIndexVersion")).isEqualTo("1");
+      }
+
+      try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile)) {
+
+         SearchIndex<Bean> index = SearchIndex.with(dump, "_idLong", ( doc, o ) -> doc.add(new TextField("data", o._data, Store.NO))).withVersion(2).build();
+
+         Bean firstBean = new Bean(1, "first row");
+         dump.add(firstBean);
+         index.flushMeta();
+
+         IndexMeta indexMeta = new IndexMeta();
+         DumpIndex.checkMeta(dump, index.getMetaFile(), index.getIndexType(), indexMeta);
+         assertThat(indexMeta.getMetaValue("searchIndexVersion")).isEqualTo("2");
+      }
+   }
+
    private void assertSingleResult( List<Bean> beans, Bean firstBean ) {
       assertThat(beans.isEmpty()).as("query did not find item").isFalse();
       assertThat(beans.size()).as("query found too many items").isEqualTo(1);
@@ -160,7 +191,6 @@ public class SearchIndexTest {
       return StreamSupport.stream(result.spliterator(), false).collect(Collectors.toList());
    }
 
-
    public static class Bean implements ExternalizableBean {
 
       @externalize(1)
@@ -171,7 +201,6 @@ public class SearchIndexTest {
       String _idString;
       @externalize(10)
       String _data;
-
 
       public Bean() {
          // for Externalization
@@ -211,8 +240,9 @@ public class SearchIndexTest {
          }
          if ( _idString == null ) {
             return other._idString == null;
-         } else
+         } else {
             return _idString.equals(other._idString);
+         }
       }
 
       @Override

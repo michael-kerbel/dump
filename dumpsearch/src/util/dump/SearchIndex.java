@@ -2,6 +2,7 @@ package util.dump;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -36,6 +37,8 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import gnu.trove.list.TLongList;
 import util.reflection.FieldAccessor;
@@ -69,6 +72,8 @@ import util.reflection.Reflection;
  */
 public class SearchIndex<E> extends DumpIndex<E> {
 
+   private static final Logger _log = LoggerFactory.getLogger(SearchIndex.class);
+
    public static <T> SearchIndexBuilder<T> with( @Nonnull Dump<T> dump, @Nonnull String idFieldName, @Nonnull BiConsumer<Document, T> documentBuilder )
          throws NoSuchFieldException {
       return new SearchIndexBuilder<>(dump, new FieldFieldAccessor(Reflection.getField(dump._beanClass, idFieldName)), documentBuilder);
@@ -79,7 +84,6 @@ public class SearchIndex<E> extends DumpIndex<E> {
       return new SearchIndexBuilder<>(dump, idFieldAccessor, documentBuilder);
    }
 
-
    private IndexWriter             _writer;
    private QueryParser             _parser;
    private IndexSearcher           _searcher;
@@ -89,16 +93,17 @@ public class SearchIndex<E> extends DumpIndex<E> {
    private DirectoryTaxonomyWriter _taxoWriter;
    private FacetsConfig            _facetsConfig;
    private DirectoryTaxonomyReader _taxoReader;
-
+   private int                     _version;
 
    private SearchIndex( @Nonnull Dump<E> dump, @Nonnull FieldAccessor idFieldAccessor, @Nonnull BiConsumer<Document, E> documentBuilder,
-         @Nonnull IndexWriterConfig config, @Nonnull QueryParser queryParser, @Nonnull FacetsConfig facetsConfig ) {
+         @Nonnull IndexWriterConfig config, @Nonnull QueryParser queryParser, @Nonnull FacetsConfig facetsConfig, int version ) {
 
       super(dump, idFieldAccessor, new File(dump.getDumpFile().getParentFile(), dump.getDumpFile().getName() + ".search.index"));
 
       _documentBuilder = documentBuilder;
       _config = config;
       _facetsConfig = facetsConfig;
+      _version = version;
       init();
 
       _parser = queryParser;
@@ -247,7 +252,6 @@ public class SearchIndex<E> extends DumpIndex<E> {
 
             int i = 0;
 
-
             @Override
             public boolean hasNext() {
                return i < docs.length;
@@ -268,6 +272,19 @@ public class SearchIndex<E> extends DumpIndex<E> {
             }
          };
       });
+   }
+
+   @Override
+   protected boolean checkMeta() {
+      IndexMeta indexMeta = new IndexMeta();
+      checkMeta(_dump, getMetaFile(), getIndexType(), indexMeta);
+      String indexVersionString = indexMeta.getMetaValue("searchIndexVersion");
+      int indexVersion = indexVersionString == null ? 0 : Integer.parseInt(indexVersionString);
+      if ( _version != indexVersion ) {
+         _log.warn("SearchIndex.version in {} does not match current version {}, will delete index", indexVersion, _version);
+         return false;
+      }
+      return indexMeta._valid;
    }
 
    protected void commit() throws IOException {
@@ -325,6 +342,16 @@ public class SearchIndex<E> extends DumpIndex<E> {
       }
       catch ( IOException e ) {
          throw new RuntimeException("Failed to initialize dump facet index with lookup file " + getLookupFile() + "-facets", e);
+      }
+   }
+
+   @Override
+   protected void writeMeta() throws IOException {
+      super.writeMeta();
+      if ( _version > 0 ) {
+         RandomAccessFile metaRAF = getMetaRAF();
+         metaRAF.writeUTF("searchIndexVersion");
+         metaRAF.writeUTF("" + _version);
       }
    }
 
@@ -393,7 +420,6 @@ public class SearchIndex<E> extends DumpIndex<E> {
       throw new RuntimeException("Failed to execute search, even after multiple retries", e);
    }
 
-
    @FunctionalInterface
    public interface ThrowingSupplier<T> {
 
@@ -405,19 +431,20 @@ public class SearchIndex<E> extends DumpIndex<E> {
       T get() throws ParseException, IOException;
    }
 
+
    public static class SearchIndexBuilder<E> {
 
       private Dump<E>                 _dump;
       private BiConsumer<Document, E> _documentBuilder;
-      FieldAccessor                   _idFieldAccessor;
-      private Analyzer                _analyzer;
-      private QueryParser             _queryParser;
-      private FacetsConfig            _facetsConfig;
-      private IndexWriterConfig       _indexWriterConfig;
-      private String[]                _longFieldNames;
-      private String[]                _doubleFieldNames;
-      private String[]                _multiValuedFacetFields;
-
+      FieldAccessor _idFieldAccessor;
+      private Analyzer          _analyzer;
+      private QueryParser       _queryParser;
+      private FacetsConfig      _facetsConfig;
+      private IndexWriterConfig _indexWriterConfig;
+      private String[]          _longFieldNames;
+      private String[]          _doubleFieldNames;
+      private String[]          _multiValuedFacetFields;
+      private int               _version = 0;
 
       public SearchIndexBuilder( Dump<E> dump, FieldAccessor idFieldAccessor, BiConsumer<Document, E> documentBuilder ) {
          _dump = dump;
@@ -439,7 +466,7 @@ public class SearchIndex<E> extends DumpIndex<E> {
 
          if ( _queryParser == null ) {
             _queryParser = new NumberQueryParser("id", _analyzer, _longFieldNames == null ? new String[0] : _longFieldNames,
-               _doubleFieldNames == null ? new String[0] : _doubleFieldNames);
+                  _doubleFieldNames == null ? new String[0] : _doubleFieldNames);
          } else if ( _longFieldNames != null || _doubleFieldNames != null ) {
             throw new RuntimeException("You may not set both a custom query parser and longFieldNames or doubleFieldNames");
          }
@@ -448,7 +475,7 @@ public class SearchIndex<E> extends DumpIndex<E> {
             _indexWriterConfig = new IndexWriterConfig(_analyzer);
          }
 
-         return new SearchIndex(_dump, _idFieldAccessor, _documentBuilder, _indexWriterConfig, _queryParser, _facetsConfig);
+         return new SearchIndex(_dump, _idFieldAccessor, _documentBuilder, _indexWriterConfig, _queryParser, _facetsConfig, _version);
       }
 
       public SearchIndexBuilder<E> withAnalyzer( Analyzer analyzer ) {
@@ -483,6 +510,11 @@ public class SearchIndex<E> extends DumpIndex<E> {
 
       public SearchIndexBuilder<E> withQueryParser( QueryParser queryParser ) {
          _queryParser = queryParser;
+         return this;
+      }
+
+      public SearchIndexBuilder<E> withVersion( int version ) {
+         _version = version;
          return this;
       }
 
