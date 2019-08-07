@@ -44,7 +44,6 @@ import org.slf4j.LoggerFactory;
 
 import gnu.trove.list.TByteList;
 import gnu.trove.list.array.TByteArrayList;
-import gnu.trove.set.TLongSet;
 import gnu.trove.set.hash.TLongHashSet;
 import util.collections.SoftLRUCache;
 import util.dump.ExternalizableBean.externalizationVersion;
@@ -146,7 +145,7 @@ public class Dump<E> implements DumpInput<E> {
    RandomAccessFile              _raf;
    ResettableBufferedInputStream _resettableBufferedInputStream;
    DataOutputStream              _deletionsOutput;
-   protected TLongSet _deletedPositions = new TLongHashSet();
+   protected TLongHashSet _deletedPositions = new TLongHashSet();
 
    /** The keys are positions in the dump file and the values are the bytes of the serialized item stored there.
     * Appended to these bytes is a space efficient encoding (see <code>longToBytes(long)</code>) of the next
@@ -305,7 +304,7 @@ public class Dump<E> implements DumpInput<E> {
             throw new IllegalArgumentException("cacheSize may not be greater 0 when not using SingleTypeObjectStreamProvider.");
          }
          _cache = new SoftLRUCache(cacheSize); // no synchronization needed, since get(.) is synchronized
-         _cacheByteInput = new ResettableBufferedInputStream((FileChannel)null, 0, false);
+         _cacheByteInput = new ResettableBufferedInputStream((FileChannel)null, 64 * 1024, 0, false);
          try {
             _cacheObjectInput = streamProvider.createObjectInput(_cacheByteInput);
          }
@@ -508,8 +507,8 @@ public class Dump<E> implements DumpInput<E> {
     * constructor and the element at pos was retrieved recently.
     */
    @SuppressWarnings("UnnecessaryBoxing")
-   public @Nullable
-   E get( long pos ) {
+   @Nullable
+   public E get( long pos ) {
       if ( !_mode.contains(DumpAccessFlag.read) ) {
          throw new AccessControlException("Get operation not allowed with current modes.");
       }
@@ -611,8 +610,8 @@ public class Dump<E> implements DumpInput<E> {
       return _dumpFile;
    }
 
-   public @Nonnull
-   DumpReader<E> getDumpReader() {
+   @Nonnull
+   public DumpReader<E> getDumpReader() {
       assertOpen();
       try {
          flush();
@@ -656,8 +655,8 @@ public class Dump<E> implements DumpInput<E> {
     */
    @SuppressWarnings("resource")
    @Override
-   public @Nonnull
-   DumpIterator<E> iterator() {
+   @Nonnull
+   public DumpIterator<E> iterator() {
       assertOpen();
       try {
          flush();
@@ -1004,6 +1003,7 @@ public class Dump<E> implements DumpInput<E> {
          catch ( EOFException argh ) {
             // ignore
          }
+         _deletedPositions.compact();
       }
    }
 
@@ -1628,8 +1628,8 @@ public class Dump<E> implements DumpInput<E> {
       }
 
       @Override
-      public @Nonnull
-      DumpIterator<E> iterator() {
+      @Nonnull
+      public DumpIterator<E> iterator() {
          return this;
       }
 
