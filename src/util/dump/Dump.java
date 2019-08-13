@@ -142,9 +142,11 @@ public class Dump<E> implements DumpInput<E> {
    DumpWriter<E>                 _writer;
    DumpReader<E>                 _reader;
    PositionAwareOutputStream     _outputStream;
+   FileChannel                   _outputStreamChannel;
    RandomAccessFile              _raf;
    ResettableBufferedInputStream _resettableBufferedInputStream;
    DataOutputStream              _deletionsOutput;
+   FileChannel                   _deletionsOutputChannel;
    protected TLongHashSet _deletedPositions = new TLongHashSet();
 
    /** The keys are positions in the dump file and the values are the bytes of the serialized item stored there.
@@ -275,6 +277,7 @@ public class Dump<E> implements DumpInput<E> {
          FileOutputStream fileOutputStream = new FileOutputStream(_dumpFile, true);
          BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(fileOutputStream, DumpWriter.DEFAULT_BUFFER_SIZE);
          _outputStream = new PositionAwareOutputStream(bufferedOutputStream, _dumpFile.length());
+         _outputStreamChannel = fileOutputStream.getChannel();
          _writer = new DumpWriter<>(_outputStream, 0, _streamProvider);
          _raf = new RandomAccessFile(_dumpFile, "r");
          _updateRaf = new RandomAccessFile(_dumpFile, "rw");
@@ -441,7 +444,9 @@ public class Dump<E> implements DumpInput<E> {
          try {
             // lazy open/create deletions file
             if ( _deletionsOutput == null ) {
-               _deletionsOutput = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(_deletionsFile, true), DumpWriter.DEFAULT_BUFFER_SIZE));
+               FileOutputStream fileOutputStream = new FileOutputStream(_deletionsFile, true);
+               _deletionsOutput = new DataOutputStream(new BufferedOutputStream(fileOutputStream, DumpWriter.DEFAULT_BUFFER_SIZE));
+               _deletionsOutputChannel = fileOutputStream.getChannel();
             }
             _deletionsOutput.writeLong(pos);
          }
@@ -480,6 +485,7 @@ public class Dump<E> implements DumpInput<E> {
     */
    public void flush() throws IOException {
       _outputStream.flush();
+      _outputStreamChannel.force(false);
       for ( DumpIndex index : new ArrayList<>(_indexes) ) {
          index.flush();
       }
@@ -493,6 +499,7 @@ public class Dump<E> implements DumpInput<E> {
    public void flushMeta() throws IOException {
       if ( _deletionsOutput != null ) {
          _deletionsOutput.flush();
+         _deletionsOutputChannel.force(false);
       }
       writeMeta();
       for ( DumpIndex index : new ArrayList<>(_indexes) ) {
@@ -1045,6 +1052,7 @@ public class Dump<E> implements DumpInput<E> {
          getMetaRAF().writeUTF(e.getKey());
          getMetaRAF().writeUTF(e.getValue());
       }
+      getMetaRAF().getChannel().force(false);
    }
 
    private void appendNextItemPos( byte[] bytes, byte[] nextItemPos ) {

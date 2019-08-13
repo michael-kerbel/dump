@@ -13,6 +13,7 @@ import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.channels.FileChannel;
 import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.List;
@@ -124,6 +125,7 @@ public abstract class DumpIndex<E> implements Closeable {
    private final   File             _metaFile;
    private         RandomAccessFile _metaRaf;
    protected       DataOutputStream _lookupOutputStream;
+   private         FileChannel      _lookupOutputStreamChannel;
    protected final FieldAccessor    _fieldAccessor;
    protected final boolean          _fieldIsInt;
    protected final boolean          _fieldIsIntObject;
@@ -227,6 +229,7 @@ public abstract class DumpIndex<E> implements Closeable {
    public void flush() throws IOException {
       if ( _lookupOutputStream != null ) {
          _lookupOutputStream.flush();
+         _lookupOutputStreamChannel.force(false);
       }
    }
 
@@ -449,16 +452,18 @@ public abstract class DumpIndex<E> implements Closeable {
 
    protected void initLookupOutputStream() {
       try {
+
+         FileOutputStream fileOutputStream = new FileOutputStream(_lookupFile, true);
+         _lookupOutputStreamChannel = fileOutputStream.getChannel();
+
          if ( !_fieldIsInt && !_fieldIsLong && !_fieldIsString ) {
             if ( _fieldIsExternalizable ) {
-               _lookupOutputStream = new SingleTypeObjectOutputStream(new BufferedOutputStream(new FileOutputStream(_lookupFile, true)),
-                     _fieldAccessor.getType());
+               _lookupOutputStream = new SingleTypeObjectOutputStream(new BufferedOutputStream(fileOutputStream), _fieldAccessor.getType());
             } else {
-               _lookupOutputStream = new ExternalizableObjectOutputStream(
-                     new DataOutputStream(new BufferedOutputStream(new FileOutputStream(_lookupFile, true))));
+               _lookupOutputStream = new ExternalizableObjectOutputStream(new DataOutputStream(new BufferedOutputStream(fileOutputStream)));
             }
          } else {
-            _lookupOutputStream = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(_lookupFile, true)));
+            _lookupOutputStream = new DataOutputStream(new BufferedOutputStream(fileOutputStream));
          }
       }
       catch ( IOException argh ) {
@@ -475,6 +480,7 @@ public abstract class DumpIndex<E> implements Closeable {
       metaRAF.writeUTF(_dump._beanClass.getName());
       metaRAF.writeUTF(getIndexType());
       metaRAF.setLength(metaRAF.getFilePointer());
+      metaRAF.getChannel().force(false);
    }
 
    abstract void add( E o, long pos );
