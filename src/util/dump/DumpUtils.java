@@ -22,7 +22,6 @@ public class DumpUtils {
    private static ThreadLocal<byte[]> _readUTFReusableByteArray  = ThreadLocal.withInitial(() -> new byte[2048]);
    private static ThreadLocal<char[]> _readUTFReusableCharArray  = ThreadLocal.withInitial(() -> new char[1024]);
 
-
    /**
     * Calls <code>dump.add(e)</code> and catches any IOException.
     * @return true if the add operation did not throw any IOException, false otherwise
@@ -67,7 +66,6 @@ public class DumpUtils {
          Iterator<E> iterator = source.new DeletionAwareDumpReader(source._dumpFile, source._streamProvider) {
 
             TIntIntMap _elementSizes = new TIntIntHashMap();
-
 
             @Override
             public boolean hasNext() {
@@ -119,7 +117,8 @@ public class DumpUtils {
                   return true;
                });
                return Math.max(1, mostFrequentSize[0]);
-            };
+            }
+
          }.iterator();
 
          for ( ; iterator.hasNext(); ) {
@@ -142,6 +141,20 @@ public class DumpUtils {
          }
          catch ( IOException e ) {
             LOG.warn("Failed to close dump " + dump.getDumpFile(), e);
+         }
+      }
+   }
+
+   /**
+    * Calls <code>index.close()</code> and catches any IOException.
+    */
+   public static void closeSilently( DumpIndex<?> index ) {
+      if ( index != null ) {
+         try {
+            index.close();
+         }
+         catch ( IOException e ) {
+            LOG.warn("Failed to close index " + index.getLookupFile(), e);
          }
       }
    }
