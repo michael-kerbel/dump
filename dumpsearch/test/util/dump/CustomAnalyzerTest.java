@@ -30,9 +30,7 @@ public class CustomAnalyzerTest {
 
          CustomAnalyzer analyzer = CustomAnalyzer.builder() //
                .withTokenizer(StandardTokenizerFactory.class) //
-               .addTokenFilter(LowerCaseFilterFactory.class)
-               .addTokenFilter(NGramFilterFactory.class,"maxGramSize", "100")
-               .build();
+               .addTokenFilter(LowerCaseFilterFactory.class).addTokenFilter(NGramFilterFactory.class, "minGramSize", "1", "maxGramSize", "100").build();
          IndexWriterConfig config = new IndexWriterConfig(analyzer);
 
          SearchIndex<Bean> index = SearchIndex.with(dump, "_id", ( doc, b ) -> {
@@ -65,7 +63,6 @@ public class CustomAnalyzerTest {
       return StreamSupport.stream(result.spliterator(), false).collect(Collectors.toList());
    }
 
-
    public static class Bean implements ExternalizableBean {
 
       @externalize(1)
@@ -73,10 +70,9 @@ public class CustomAnalyzerTest {
       @externalize(2)
       private String _text;
 
-
       public Bean() {}
 
-      public Bean( int id, String text) {
+      public Bean( int id, String text ) {
          _id = id;
          _text = text;
       }
