@@ -168,7 +168,7 @@ public interface ExternalizableBean extends Externalizable {
       try {
          ClassConfig config = getConfig(getClass());
 
-         int fieldNumberToRead = in.readByte();
+         int fieldNumberToRead = in.readByte() & 0xff;
 
          FieldAccessor[] fieldAccessors = config._fieldAccessors;
          byte[] fieldIndexes = config._fieldIndexes;
