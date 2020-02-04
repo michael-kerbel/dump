@@ -8,6 +8,7 @@ import gnu.trove.map.TLongLongMap;
 import gnu.trove.map.hash.TLongLongHashMap;
 import util.reflection.FieldAccessor;
 
+
 /**
  * This extends UniqueIndex with the capability to directly lookup a long that is calculated from E without the
  * need to load E itself. Not only does it reduce IO when doing this type of access, it also externalizes its state
@@ -19,15 +20,16 @@ public class UniqueIndexWithLongPayload<E> extends UniqueIndex<E> {
 
    protected ToLongFunction<E> _payloadProvider;
 
-
    public UniqueIndexWithLongPayload( Dump<E> dump, FieldAccessor fieldAccessor, ToLongFunction<E> payloadProvider ) {
       super(dump, fieldAccessor);
       _payloadProvider = payloadProvider;
+      initLater();
    }
 
    public UniqueIndexWithLongPayload( Dump<E> dump, String fieldName, ToLongFunction<E> payloadProvider ) throws NoSuchFieldException {
       super(dump, fieldName);
       _payloadProvider = payloadProvider;
+      initLater();
    }
 
    @Override
@@ -50,7 +52,7 @@ public class UniqueIndexWithLongPayload<E> extends UniqueIndex<E> {
       synchronized ( _dump ) {
          if ( !_fieldIsInt ) {
             throw new IllegalArgumentException(
-               "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookupPayload(.) method.");
+                  "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookupPayload(.) method.");
          }
          long pos = getPosition(key);
          if ( pos < 0 ) {
@@ -64,7 +66,7 @@ public class UniqueIndexWithLongPayload<E> extends UniqueIndex<E> {
       synchronized ( _dump ) {
          if ( !_fieldIsLong ) {
             throw new IllegalArgumentException(
-               "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookupPayload(.) method.");
+                  "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookupPayload(.) method.");
          }
          long pos = getPosition(key);
          if ( pos < 0 ) {
@@ -84,7 +86,7 @@ public class UniqueIndexWithLongPayload<E> extends UniqueIndex<E> {
          }
          if ( _fieldIsLong || _fieldIsInt ) {
             throw new IllegalArgumentException(
-               "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookupPayload(.) method.");
+                  "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookupPayload(.) method.");
          }
          long pos = getPosition(key);
          if ( pos < 0 ) {
@@ -105,6 +107,11 @@ public class UniqueIndexWithLongPayload<E> extends UniqueIndex<E> {
    }
 
    @Override
+   protected void init() {
+      // we need to do init later :(
+   }
+
+   @Override
    protected void initLookupMap() {
       super.initLookupMap();
       _posToPayload = new TLongLongHashMap();
@@ -115,6 +122,7 @@ public class UniqueIndexWithLongPayload<E> extends UniqueIndex<E> {
       return in.readLong();
    }
 
+   @Override
    void delete( E o, long pos ) {
       super.delete(o, pos);
 
@@ -158,5 +166,9 @@ public class UniqueIndexWithLongPayload<E> extends UniqueIndex<E> {
 
          add(newItem, pos);
       }
+   }
+
+   private void initLater() {
+      super.init();
    }
 }
