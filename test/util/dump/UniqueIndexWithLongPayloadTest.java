@@ -13,8 +13,7 @@ import org.junit.Test;
 public class UniqueIndexWithLongPayloadTest {
 
    private static final String DUMP_FILENAME = "UniqueIndexWithLongPayloadTest.dmp";
-   private static File         _tmpdir;
-
+   private static       File   _tmpdir;
 
    @BeforeClass
    public static void setUpTmpdir() throws IOException {
@@ -56,6 +55,10 @@ public class UniqueIndexWithLongPayloadTest {
          }
 
          assertPayload(dump, intIndex, longIndex, stringIndex);
+
+         // we force index rebuild for longIndex by closing this index prior to adding an additional object.
+         longIndex.close();
+         dump.add(new UniqueIndexTest.Bean(1000, null));
 
          // reopen dump
          dump.close();
