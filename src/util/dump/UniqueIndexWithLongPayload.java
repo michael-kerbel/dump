@@ -124,8 +124,6 @@ public class UniqueIndexWithLongPayload<E> extends UniqueIndex<E> {
 
    @Override
    void delete( E o, long pos ) {
-      super.delete(o, pos);
-
       synchronized ( _dump ) {
          if ( _fieldIsInt ) {
             int key = getIntKey(o);
@@ -147,13 +145,15 @@ public class UniqueIndexWithLongPayload<E> extends UniqueIndex<E> {
             }
          }
       }
+
+      super.delete(o, pos);
    }
 
    @Override
    void update( long pos, E oldItem, E newItem ) {
       super.update(pos, oldItem, newItem);
 
-      if ( _payloadProvider.applyAsLong(oldItem) != _payloadProvider.applyAsLong(newItem) ) {
+      if ( lookupPayload(getKey(newItem)) != _payloadProvider.applyAsLong(newItem) ) {
          delete(oldItem, pos);
 
          try {

@@ -3,12 +3,9 @@ package util.dump;
 import java.io.DataInput;
 import java.io.IOException;
 import java.util.function.ToIntFunction;
-import java.util.function.ToLongFunction;
 
 import gnu.trove.map.TLongIntMap;
-import gnu.trove.map.TLongLongMap;
 import gnu.trove.map.hash.TLongIntHashMap;
-import gnu.trove.map.hash.TLongLongHashMap;
 import util.reflection.FieldAccessor;
 
 
@@ -22,7 +19,6 @@ public class UniqueIndexWithIntPayload<E> extends UniqueIndex<E> {
    protected TLongIntMap _posToPayload;
 
    protected ToIntFunction<E> _payloadProvider;
-
 
    public UniqueIndexWithIntPayload( Dump<E> dump, FieldAccessor fieldAccessor, ToIntFunction<E> payloadProvider ) {
       super(dump, fieldAccessor);
@@ -54,7 +50,7 @@ public class UniqueIndexWithIntPayload<E> extends UniqueIndex<E> {
       synchronized ( _dump ) {
          if ( !_fieldIsInt ) {
             throw new IllegalArgumentException(
-               "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookupPayload(.) method.");
+                  "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookupPayload(.) method.");
          }
          long pos = getPosition(key);
          if ( pos < 0 ) {
@@ -68,7 +64,7 @@ public class UniqueIndexWithIntPayload<E> extends UniqueIndex<E> {
       synchronized ( _dump ) {
          if ( !_fieldIsLong ) {
             throw new IllegalArgumentException(
-               "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookupPayload(.) method.");
+                  "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookupPayload(.) method.");
          }
          long pos = getPosition(key);
          if ( pos < 0 ) {
@@ -88,7 +84,7 @@ public class UniqueIndexWithIntPayload<E> extends UniqueIndex<E> {
          }
          if ( _fieldIsLong || _fieldIsInt ) {
             throw new IllegalArgumentException(
-               "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookupPayload(.) method.");
+                  "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookupPayload(.) method.");
          }
          long pos = getPosition(key);
          if ( pos < 0 ) {
@@ -119,9 +115,8 @@ public class UniqueIndexWithIntPayload<E> extends UniqueIndex<E> {
       return in.readInt();
    }
 
+   @Override
    void delete( E o, long pos ) {
-      super.delete(o, pos);
-
       synchronized ( _dump ) {
          if ( _fieldIsInt ) {
             int key = getIntKey(o);
@@ -143,13 +138,15 @@ public class UniqueIndexWithIntPayload<E> extends UniqueIndex<E> {
             }
          }
       }
+
+      super.delete(o, pos);
    }
 
    @Override
    void update( long pos, E oldItem, E newItem ) {
       super.update(pos, oldItem, newItem);
 
-      if ( _payloadProvider.applyAsInt(oldItem) != _payloadProvider.applyAsInt(newItem) ) {
+      if ( lookupPayload(getKey(newItem)) != _payloadProvider.applyAsInt(newItem) ) {
          delete(oldItem, pos);
 
          try {
