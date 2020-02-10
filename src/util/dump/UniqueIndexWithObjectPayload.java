@@ -25,7 +25,6 @@ public class UniqueIndexWithObjectPayload<E, P> extends UniqueIndex<E> {
    protected BiConsumer<DataOutput, P> _payloadWriter;
    protected Function<DataInput, P>    _payloadReader;
 
-
    public UniqueIndexWithObjectPayload( Dump<E> dump, FieldAccessor fieldAccessor, Function<E, P> payloadProvider, BiConsumer<DataOutput, P> payloadWriter,
          Function<DataInput, P> payloadReader ) {
       super(dump, fieldAccessor);
@@ -61,7 +60,7 @@ public class UniqueIndexWithObjectPayload<E, P> extends UniqueIndex<E> {
       synchronized ( _dump ) {
          if ( !_fieldIsInt ) {
             throw new IllegalArgumentException(
-               "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookupPayload(.) method.");
+                  "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookupPayload(.) method.");
          }
          long pos = getPosition(key);
          if ( pos < 0 ) {
@@ -75,7 +74,7 @@ public class UniqueIndexWithObjectPayload<E, P> extends UniqueIndex<E> {
       synchronized ( _dump ) {
          if ( !_fieldIsLong ) {
             throw new IllegalArgumentException(
-               "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookupPayload(.) method.");
+                  "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookupPayload(.) method.");
          }
          long pos = getPosition(key);
          if ( pos < 0 ) {
@@ -95,7 +94,7 @@ public class UniqueIndexWithObjectPayload<E, P> extends UniqueIndex<E> {
          }
          if ( _fieldIsLong || _fieldIsInt ) {
             throw new IllegalArgumentException(
-               "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookupPayload(.) method.");
+                  "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookupPayload(.) method.");
          }
          long pos = getPosition(key);
          if ( pos < 0 ) {
@@ -126,9 +125,8 @@ public class UniqueIndexWithObjectPayload<E, P> extends UniqueIndex<E> {
       return _payloadReader.apply(in);
    }
 
+   @Override
    void delete( E o, long pos ) {
-      super.delete(o, pos);
-
       synchronized ( _dump ) {
          if ( _fieldIsInt ) {
             int key = getIntKey(o);
@@ -150,13 +148,15 @@ public class UniqueIndexWithObjectPayload<E, P> extends UniqueIndex<E> {
             }
          }
       }
+
+      super.delete(o, pos);
    }
 
    @Override
    void update( long pos, E oldItem, E newItem ) {
       super.update(pos, oldItem, newItem);
 
-      if ( _payloadProvider.apply(oldItem) != _payloadProvider.apply(newItem) ) {
+      if ( lookupPayload(getKey(newItem)) != _payloadProvider.apply(newItem) ) {
          delete(oldItem, pos);
 
          try {
