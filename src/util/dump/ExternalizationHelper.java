@@ -52,7 +52,6 @@ class ExternalizationHelper {
    static Map<Class, Boolean>      CLASS_CHANGED_INCOMPATIBLY = new HashMap<>();
    static ThreadLocal<StreamCache> STREAM_CACHE               = ThreadLocal.withInitial(StreamCache::new);
 
-
    static {
       try {
          boolean config = Boolean.parseBoolean(System.getProperty("ExternalizableBean.USE_UNSAFE_FIELD_ACCESSORS", "true"));
@@ -132,10 +131,11 @@ class ExternalizationHelper {
          d.add(instanceReader.get());
       }
 
-      if ( unmodifiableList )
+      if ( unmodifiableList ) {
          d = Collections.unmodifiableList((List)d);
-      else if ( unmodifiableSet )
+      } else if ( unmodifiableSet ) {
          d = Collections.unmodifiableSet((Set)d);
+      }
 
       return d;
    }
@@ -149,7 +149,7 @@ class ExternalizationHelper {
          int size = in.readInt();
          Class[] lastNonDefaultClass = new Class[1];
          d = readCollectionContainer(in, defaultType, isDefaultType, size, config,
-            () -> readExternalizable(in, defaultGenericType, lastNonDefaultClass, config));
+               () -> readExternalizable(in, defaultGenericType, lastNonDefaultClass, config));
 
       }
       if ( f != null ) {
@@ -510,12 +510,12 @@ class ExternalizationHelper {
       }
    }
 
-
    @FunctionalInterface
    public interface ThrowingSupplier<T> {
 
       T get() throws Exception;
    }
+
 
    public enum FieldType {
       pInt(int.class, 0), //
@@ -567,12 +567,13 @@ class ExternalizationHelper {
       BigDecimal(BigDecimal.class, 46), //
       LocalDateTime(LocalDateTime.class, 47), //
       ZonedDateTime(ZonedDateTime.class, 48), //
+      LocalDate(java.time.LocalDate.class, 49), //
+      Instant(java.time.Instant.class, 50), //
       // TODO add Map (beware of Collections.*Map or Treemaps using custom Comparators!)
       ;
 
       private static Map<Class, FieldType> _classLookup = new HashMap<>(FieldType.values().length);
-      private static FieldType[] _idLookup = new FieldType[127];
-
+      private static FieldType[]           _idLookup    = new FieldType[127];
 
       static {
          for ( FieldType ft : FieldType.values() ) {
@@ -595,11 +596,9 @@ class ExternalizationHelper {
          return _idLookup[id];
       }
 
-
       final Class _class;
-      final byte _id;
+      final byte  _id;
       boolean _lengthDynamic = false;
-
 
       FieldType( Class c, int id ) {
          _class = c;
@@ -616,13 +615,13 @@ class ExternalizationHelper {
       }
    }
 
+
    static class BytesCache extends OutputStream {
 
       // this is basically an unsynchronized ByteArrayOutputStream with a writeTo(ObjectOutput) method
 
       protected byte[] _buffer;
       protected int    _count;
-
 
       public BytesCache() {
          this(1024);
@@ -632,7 +631,7 @@ class ExternalizationHelper {
          if ( size < 0 ) {
             throw new IllegalArgumentException("Negative initial size: " + size);
          }
-         this._buffer = new byte[size];
+         _buffer = new byte[size];
       }
 
       public void reset() {
@@ -660,14 +659,14 @@ class ExternalizationHelper {
             _buffer = Arrays.copyOf(_buffer, Math.max(_buffer.length << 1, i));
          }
          System.arraycopy(bytes, start, _buffer, _count, length);
-         this._count = i;
+         _count = i;
       }
 
       @Override
       public void write( int data ) {
-         int i = this._count + 1;
-         if ( i > this._buffer.length ) {
-            this._buffer = Arrays.copyOf(_buffer, Math.max(_buffer.length << 1, i));
+         int i = _count + 1;
+         if ( i > _buffer.length ) {
+            _buffer = Arrays.copyOf(_buffer, Math.max(_buffer.length << 1, i));
          }
          _buffer[_count] = (byte)data;
          _count = i;
@@ -677,6 +676,7 @@ class ExternalizationHelper {
          out.write(_buffer, 0, _count);
       }
    }
+
 
    static class ClassConfig {
 
@@ -689,7 +689,6 @@ class ExternalizationHelper {
       Class[]         _defaultGenericTypes0;
       Class[]         _defaultGenericTypes1;
       int             _sizeModulo = -1;
-
 
       public ClassConfig( Class clientClass ) {
          try {
@@ -728,7 +727,7 @@ class ExternalizationHelper {
          }
          if ( _fieldAccessors.length == 0 ) {
             throw new RuntimeException(_class + " extends ExternalizableBean, but it has no externalizable fields or methods. "
-               + "This is most probably a bug. Externalizable fields and methods must be public.");
+                  + "This is most probably a bug. Externalizable fields and methods must be public.");
          }
       }
 
@@ -777,23 +776,21 @@ class ExternalizationHelper {
          }
          if ( ft == null ) {
             ft = FieldType.Object;
-            LoggerFactory.getLogger(_class)
-                  .warn("The field type of index " + fi._fieldIndex + //
-                     " is not of a supported type, thus falling back to Object serialization." + //
-                     " This might be very slow of even fail, dependant on your ObjectStreamProvider." + //
-                     " Please check, whether this is really what you wanted!");
+            LoggerFactory.getLogger(_class).warn("The field type of index " + fi._fieldIndex + //
+                  " is not of a supported type, thus falling back to Object serialization." + //
+                  " This might be very slow of even fail, dependant on your ObjectStreamProvider." + //
+                  " Please check, whether this is really what you wanted!");
          }
          if ( (ft == FieldType.ListOfExternalizables || ft == FieldType.SetOfExternalizables) //
-            && (fi._fieldAccessor.getGenericTypes().length != 1 || !Externalizable.class.isAssignableFrom(fi._fieldAccessor.getGenericTypes()[0])) ) {
+               && (fi._fieldAccessor.getGenericTypes().length != 1 || !Externalizable.class.isAssignableFrom(fi._fieldAccessor.getGenericTypes()[0])) ) {
             if ( fi._fieldAccessor.getGenericTypes().length == 1 && String.class == fi._fieldAccessor.getGenericTypes()[0] ) {
                ft = (ft == FieldType.ListOfExternalizables) ? FieldType.ListOfStrings : FieldType.SetOfStrings;
             } else {
                ft = FieldType.Object;
-               LoggerFactory.getLogger(_class)
-                     .warn("The field type of index " + fi._fieldIndex + //
-                        " has a Collection with an unsupported type as generic parameter, thus falling back to Object serialization." + //
-                        " This might be very slow of even fail, dependant on your ObjectStreamProvider." + //
-                        " Please check, whether this is really what you wanted!");
+               LoggerFactory.getLogger(_class).warn("The field type of index " + fi._fieldIndex + //
+                     " has a Collection with an unsupported type as generic parameter, thus falling back to Object serialization." + //
+                     " This might be very slow of even fail, dependant on your ObjectStreamProvider." + //
+                     " Please check, whether this is really what you wanted!");
             }
          }
 
@@ -826,15 +823,16 @@ class ExternalizationHelper {
       }
 
       private void initFromMethods( List<FieldInfo> fieldInfos ) {
-         methodLoop: for ( Method m : _class.getMethods() ) {
+         methodLoop:
+         for ( Method m : _class.getMethods() ) {
             int mod = m.getModifiers();
             if ( Modifier.isStatic(mod) ) {
                continue;
             }
 
             Method getter = null, setter = null;
-            if ( m.getName().startsWith("get")
-               || (m.getName().startsWith("is") && (m.getReturnType() == boolean.class || m.getReturnType() == Boolean.class)) ) {
+            if ( m.getName().startsWith("get") || (m.getName().startsWith("is") && (m.getReturnType() == boolean.class
+                  || m.getReturnType() == Boolean.class)) ) {
                getter = m;
             } else if ( m.getName().startsWith("set") ) {
                setter = m;
@@ -857,7 +855,7 @@ class ExternalizationHelper {
                   externalize getterAnnotation = getter.getAnnotation(externalize.class);
                   if ( getterAnnotation != null ) {
                      throw new RuntimeException(
-                        _class + " extends ExternalizableBean, but the annotated getter method " + getter.getName() + " has a parameter.");
+                           _class + " extends ExternalizableBean, but the annotated getter method " + getter.getName() + " has a parameter.");
                   } else {
                      continue;
                   }
@@ -872,7 +870,7 @@ class ExternalizationHelper {
                   externalize getterAnnotation = getter.getAnnotation(externalize.class);
                   if ( getterAnnotation != null ) {
                      throw new RuntimeException(_class + " extends ExternalizableBean, but the annotated getter method " + getter.getName()
-                        + " has no appropriate setter with the correct parameter.");
+                           + " has no appropriate setter with the correct parameter.");
                   } else {
                      continue;
                   }
@@ -891,7 +889,7 @@ class ExternalizationHelper {
                   externalize setterAnnotation = setter.getAnnotation(externalize.class);
                   if ( setterAnnotation != null ) {
                      throw new RuntimeException(
-                        _class + " extends ExternalizableBean, but the annotated setter method " + setter.getName() + " does not have a single parameter.");
+                           _class + " extends ExternalizableBean, but the annotated setter method " + setter.getName() + " does not have a single parameter.");
                   } else {
                      continue;
                   }
@@ -906,7 +904,7 @@ class ExternalizationHelper {
                   externalize setterAnnotation = setter.getAnnotation(externalize.class);
                   if ( setterAnnotation != null ) {
                      throw new RuntimeException(
-                        _class + " extends ExternalizableBean, but the annotated setter method " + setter.getName() + " has no appropriate getter.");
+                           _class + " extends ExternalizableBean, but the annotated setter method " + setter.getName() + " has no appropriate getter.");
                   } else {
                      continue;
                   }
@@ -917,7 +915,7 @@ class ExternalizationHelper {
                   externalize getterAnnotation = getter.getAnnotation(externalize.class);
                   if ( getterAnnotation != null || setterAnnotation != null ) {
                      throw new RuntimeException(_class + " extends ExternalizableBean, but the annotated setter method " + setter.getName()
-                        + " has no getter with the correct return type.");
+                           + " has no getter with the correct return type.");
                   } else {
                      continue;
                   }
@@ -931,7 +929,7 @@ class ExternalizationHelper {
             }
             if ( getterAnnotation != null && setterAnnotation != null && getterAnnotation.value() != setterAnnotation.value() ) {
                throw new RuntimeException(_class + " extends ExternalizableBean, but the getter/setter pair " + getter.getName()
-                  + " has different indexes in the externalize annotations.");
+                     + " has different indexes in the externalize annotations.");
             }
             externalize annotation = getterAnnotation == null ? setterAnnotation : getterAnnotation;
 
@@ -960,6 +958,7 @@ class ExternalizationHelper {
       }
    }
 
+
    static class FieldInfo implements Comparable<FieldInfo> {
 
       FieldAccessor _fieldAccessor;
@@ -968,7 +967,6 @@ class ExternalizationHelper {
       Class         _defaultType;
       Class         _defaultGenericType0;
       Class         _defaultGenericType1;
-
 
       @Override
       public int compareTo( @Nonnull FieldInfo o ) {
@@ -997,19 +995,21 @@ class ExternalizationHelper {
             }
             catch ( Exception argh ) {
                throw new RuntimeException("Field " + fieldAccessor.getName() + " with index " + _fieldIndex + " has defaultType " + _defaultType
-                  + " which has no public nullary constructor.");
+                     + " which has no public nullary constructor.");
             }
 
             if ( ft == FieldType.ListOfExternalizables || ft == FieldType.ListOfStrings ) {
                if ( !List.class.isAssignableFrom(_defaultType) ) {
-                  throw new RuntimeException("defaultType for a List field must be a List! Field " + fieldAccessor.getName() + " with index " + _fieldIndex
-                     + " has defaultType " + _defaultType);
+                  throw new RuntimeException(
+                        "defaultType for a List field must be a List! Field " + fieldAccessor.getName() + " with index " + _fieldIndex + " has defaultType "
+                              + _defaultType);
                }
             }
             if ( ft == FieldType.SetOfExternalizables || ft == FieldType.SetOfStrings ) {
                if ( !Set.class.isAssignableFrom(_defaultType) ) {
-                  throw new RuntimeException("defaultType for a Set field must be a Set! Field " + fieldAccessor.getName() + " with index " + _fieldIndex
-                     + " has defaultType " + _defaultType);
+                  throw new RuntimeException(
+                        "defaultType for a Set field must be a Set! Field " + fieldAccessor.getName() + " with index " + _fieldIndex + " has defaultType "
+                              + _defaultType);
                }
             }
          }
@@ -1023,25 +1023,27 @@ class ExternalizationHelper {
                   _defaultGenericType0.newInstance();
                }
                catch ( Exception argh ) {
-                  throw new RuntimeException(" Field " + fieldAccessor.getName() + " with index " + _fieldIndex + " has defaultGenericType0 "
-                     + _defaultGenericType0 + " which has no public nullary constructor.");
+                  throw new RuntimeException(
+                        " Field " + fieldAccessor.getName() + " with index " + _fieldIndex + " has defaultGenericType0 " + _defaultGenericType0
+                              + " which has no public nullary constructor.");
                }
 
                if ( !Externalizable.class.isAssignableFrom(_defaultType) ) {
-                  throw new RuntimeException("defaultGenericType0 for a field with a collection of Externalizables must be an Externalizable! Field "
-                     + fieldAccessor.getName() + " with index " + _fieldIndex + " has defaultGenericType0 " + _defaultGenericType0);
+                  throw new RuntimeException(
+                        "defaultGenericType0 for a field with a collection of Externalizables must be an Externalizable! Field " + fieldAccessor.getName()
+                              + " with index " + _fieldIndex + " has defaultGenericType0 " + _defaultGenericType0);
                }
             }
          }
       }
    }
 
+
    static class StreamCache {
 
       BytesCache   _bytesCache = new BytesCache();
       ObjectOutput _objectOutput;
       boolean      _inUse      = false;
-
 
       public StreamCache() {
          try {
