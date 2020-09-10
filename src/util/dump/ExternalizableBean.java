@@ -49,6 +49,7 @@ import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
@@ -423,6 +424,33 @@ public interface ExternalizableBean extends Externalizable {
                }
                if ( f != null ) {
                   f.set(this, d);
+               }
+               break;
+            }
+            case LocalDate: {
+               LocalDate d = null;
+               boolean isNotNull = in.readBoolean();
+               if ( isNotNull ) {
+                  int year = in.readInt();
+                  int month = in.readByte();
+                  int dayOfMonth = in.readByte();
+                  d = LocalDate.of(year, month, dayOfMonth);
+               }
+               if ( f != null ) {
+                  f.set(this, d);
+               }
+               break;
+            }
+            case Instant: {
+               Instant t = null;
+               boolean isNotNull = in.readBoolean();
+               if ( isNotNull ) {
+                  long seconds = in.readLong();
+                  int nanos = in.readInt();
+                  t = Instant.ofEpochSecond(seconds, nanos);
+               }
+               if ( f != null ) {
+                  f.set(this, t);
                }
                break;
             }
@@ -933,6 +961,25 @@ public interface ExternalizableBean extends Externalizable {
                if ( d != null ) {
                   out.writeLong(d.toEpochSecond(UTC));
                   out.writeInt(d.getNano());
+               }
+               break;
+            }
+            case LocalDate: {
+               LocalDate d = (LocalDate)f.get(this);
+               out.writeBoolean(d != null);
+               if ( d != null ) {
+                  out.writeInt(d.getYear());
+                  out.writeByte(d.getMonthValue());
+                  out.writeByte(d.getDayOfMonth());
+               }
+               break;
+            }
+            case Instant: {
+               Instant t = (Instant)f.get(this);
+               out.writeBoolean(t != null);
+               if ( t != null ) {
+                  out.writeLong(t.getEpochSecond());
+                  out.writeInt(t.getNano());
                }
                break;
             }

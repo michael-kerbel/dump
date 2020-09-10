@@ -20,6 +20,7 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -48,9 +49,8 @@ import util.reflection.Reflection;
 
 public class ExternalizableBeanTest {
 
-   private static final int NUMBER_OF_INSTANCES_TO_CREATE = 100;
-   private static Random    r;
-
+   private static final int    NUMBER_OF_INSTANCES_TO_CREATE = 100;
+   private static       Random r;
 
    static {
       long seed = System.currentTimeMillis();
@@ -201,6 +201,17 @@ public class ExternalizableBeanTest {
             } else {
                f.set(t, null);
             }
+         } else if ( type == LocalDate.class ) {
+            boolean isNotNull = r.nextBoolean();
+            if ( isNotNull ) {
+               long time = r.nextInt();
+               time = Math.max(time, -10000L);
+               time = Math.min(time, 100000L);
+               LocalDate s = LocalDate.ofEpochDay(time);
+               f.set(t, s);
+            } else {
+               f.set(t, null);
+            }
          } else if ( type == ZonedDateTime.class ) {
             boolean isNotNull = r.nextBoolean();
             if ( isNotNull ) {
@@ -209,6 +220,17 @@ public class ExternalizableBeanTest {
                time = Math.min(time, 31556889801248460L);
                ZoneId zone = ZoneId.of(ZoneId.getAvailableZoneIds().toArray(new String[0])[r.nextInt(ZoneId.getAvailableZoneIds().size())]);
                ZonedDateTime s = ZonedDateTime.ofInstant(Instant.ofEpochMilli(time), zone);
+               f.set(t, s);
+            } else {
+               f.set(t, null);
+            }
+         } else if ( type == Instant.class ) {
+            boolean isNotNull = r.nextBoolean();
+            if ( isNotNull ) {
+               long time = r.nextInt();
+               time = Math.max(time, -31556889801248460L);
+               time = Math.min(time, 31556889801248460L);
+               Instant s = Instant.ofEpochMilli(time);
                f.set(t, s);
             } else {
                f.set(t, null);
@@ -351,8 +373,8 @@ public class ExternalizableBeanTest {
             } else {
                f.set(t, null);
             }
-         } else if ( type.getComponentType() != null && type.getComponentType().getComponentType() != null
-            && Externalizable.class.isAssignableFrom(type.getComponentType().getComponentType()) ) {
+         } else if ( type.getComponentType() != null && type.getComponentType().getComponentType() != null && Externalizable.class.isAssignableFrom(
+               type.getComponentType().getComponentType()) ) {
             boolean isNotNull = r.nextBoolean();
             if ( isNotNull ) {
                Externalizable[][] d = (Externalizable[][])Array.newInstance(type.getComponentType(), r.nextInt(2));
@@ -471,12 +493,12 @@ public class ExternalizableBeanTest {
    public void testStreamCache() throws Exception {
       TestBeanStreamCache b = new TestBeanStreamCache();
       b._list1 = null;
-      b._list2 = new LinkedList<Externalizable>();
+      b._list2 = new LinkedList<>();
       TestBeanStreamCache bb = new TestBeanStreamCache();
       b._list2.add(bb);
-      bb._list1 = new LinkedList<Externalizable>();
+      bb._list1 = new LinkedList<>();
       bb._list1.add(new TestBeanStreamCache());
-      bb._list2 = new LinkedList<Externalizable>();
+      bb._list2 = new LinkedList<>();
       Externalizable[] t = new Externalizable[] { b };
 
       readAndAssert(write(t), TestBeanStreamCache.class, t);
@@ -694,8 +716,8 @@ public class ExternalizableBeanTest {
          if ( c.equals(Date[].class) ) {
             return Arrays.equals((Date[])ft, (Date[])ftt);
          }
-         if ( c.getComponentType() != null && c.getComponentType().getComponentType() != null
-            && Externalizable.class.isAssignableFrom(c.getComponentType().getComponentType()) ) {
+         if ( c.getComponentType() != null && c.getComponentType().getComponentType() != null && Externalizable.class.isAssignableFrom(
+               c.getComponentType().getComponentType()) ) {
             Externalizable[][] l1 = (Externalizable[][])ft;
             Externalizable[][] l2 = (Externalizable[][])ftt;
             if ( l1.length != l2.length ) {
@@ -816,14 +838,23 @@ public class ExternalizableBeanTest {
       readAndAssert(write(t), testClass2, t);
    }
 
-
    public enum TestEnum {
-      EnumValue1, EnumValue2, EnumValue3, EnumValue4, EnumValue5;
+      EnumValue1,
+      EnumValue2,
+      EnumValue3,
+      EnumValue4,
+      EnumValue5
    }
+
 
    public enum TestEnum2 {
-      EnumValue1, EnumValue5, EnumValue3, EnumValue6, EnumValue7;
+      EnumValue1,
+      EnumValue5,
+      EnumValue3,
+      EnumValue6,
+      EnumValue7
    }
+
 
    public static class TestBean implements ExternalizableBean, Comparable<TestBean> {
 
@@ -905,9 +936,12 @@ public class ExternalizableBeanTest {
       public LocalDateTime        _localDateTime;
       @externalize(40)
       public ZonedDateTime        _zonedDateTime;
+      @externalize(41)
+      public LocalDate            _localDate;
+      @externalize(42)
+      public Instant              _instant;
 
       public int _i; // this member var gets initialized randomly only if the field is public - a limitation of this testcase
-
 
       @Override
       public int compareTo( TestBean o ) {
@@ -924,6 +958,7 @@ public class ExternalizableBeanTest {
       }
    }
 
+
    public static class TestBean2 extends TestBean {
 
       @externalize(50)
@@ -931,6 +966,7 @@ public class ExternalizableBeanTest {
       @externalize(51)
       public int                 _int2;
    }
+
 
    public static class TestBean3 implements ExternalizableBean, Comparable<TestBean3> {
 
@@ -958,7 +994,6 @@ public class ExternalizableBeanTest {
       public TestBeanSimple    _testBeanSimple;
       public EnumSet<TestEnum> _enumSet;
       public TestEnum          _enum;
-
 
       @Override
       public int compareTo( TestBean3 o ) {
@@ -1146,6 +1181,7 @@ public class ExternalizableBeanTest {
       }
    }
 
+
    public static class TestBean4 implements ExternalizableBean {
 
       // this member var gets initialized randomly only if the field is public - a limitation of this testcase
@@ -1170,7 +1206,6 @@ public class ExternalizableBeanTest {
       public Short            _Short;
       @externalize(29)
       public TestBeanSimple[] _testBeanSimpleArray;
-
 
       @externalize(21)
       public Boolean getBoolean2() {
@@ -1335,13 +1370,13 @@ public class ExternalizableBeanTest {
       }
    }
 
+
    public static class TestBean5 implements ExternalizableBean, Comparable<TestBean5> {
 
       // the member vars get initialized randomly only if the field is public - a limitation of this testcase
 
       public EnumSet<TestEnum> _enumSet;
       public TestEnum          _enum;
-
 
       @Override
       public int compareTo( TestBean5 o ) {
@@ -1367,13 +1402,13 @@ public class ExternalizableBeanTest {
       }
    }
 
+
    public static class TestBean6 implements ExternalizableBean, Comparable<TestBean6> {
 
       // the member vars get initialized randomly only if the field is public - a limitation of this testcase
 
       public EnumSet<TestEnum2> _enumSet;
       public TestEnum2          _enum;
-
 
       @Override
       public int compareTo( TestBean6 o ) {
@@ -1399,6 +1434,7 @@ public class ExternalizableBeanTest {
       }
    }
 
+
    public static class TestBean7 implements ExternalizableBean {
 
       @externalize(1)
@@ -1421,18 +1457,19 @@ public class ExternalizableBeanTest {
       public Set<String>  _set4  = Collections.unmodifiableSet(new HashSet<>(Collections.singletonList("a")));
    }
 
+
    public static class TestBeanCyclic implements ExternalizableBean {
 
       @externalize(1)
       TestBeanCyclic _other;
    }
 
+
    @externalizationPadding(sizeModulo = 1000)
    public static class TestBeanPadding implements ExternalizableBean {
 
       @externalize(1)
       public byte[] _data;
-
 
       @Override
       public boolean equals( Object o ) {
@@ -1454,6 +1491,7 @@ public class ExternalizableBeanTest {
       }
    }
 
+
    public static class TestBeanSimple implements ExternalizableBean {
 
       // the member vars get initialized randomly only if the field is public - a limitation of this testcase
@@ -1466,13 +1504,13 @@ public class ExternalizableBeanTest {
       public byte    _bytePrimitive;
    }
 
+
    public static class TestBeanStreamCache implements ExternalizableBean, Comparable<TestBean> {
 
       @externalize(1)
       public List<Externalizable> _list1;
       @externalize(2)
       public List<Externalizable> _list2;
-
 
       @Override
       public int compareTo( TestBean o ) {
