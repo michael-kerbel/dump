@@ -23,14 +23,12 @@ public class SingleTypeObjectOutputStream<E extends Externalizable> extends Data
       return bytes.toByteArray();
    }
 
-
-   private final Class<E>            _class;
-   private ByteArrayPacker           _compressionType            = null;
-   private FastByteArrayOutputStream _compressionByteBuffer      = null;
-   private OutputStream              _originalOut                = null;
-   private byte[]                    _reusableCompressBytesArray = null;
-   private byte[]                    _dict;
-
+   private final Class<E>                  _class;
+   private       ByteArrayPacker           _compressionType            = null;
+   private       FastByteArrayOutputStream _compressionByteBuffer      = null;
+   private       OutputStream              _originalOut                = null;
+   private       byte[]                    _reusableCompressBytesArray = null;
+   private       byte[]                    _dict;
 
    public SingleTypeObjectOutputStream( OutputStream out, Class<E> c ) {
       super(out);
@@ -82,6 +80,8 @@ public class SingleTypeObjectOutputStream<E extends Externalizable> extends Data
 
          if ( _reusableCompressBytesArray != null && _reusableCompressBytesArray.length > 128 * 1024 ) {
             _reusableCompressBytesArray = new byte[8192];
+         }
+         if ( _compressionByteBuffer.getBuf().length > 128 * 1024 ) {
             _compressionByteBuffer = new FastByteArrayOutputStream();
          }
       }
