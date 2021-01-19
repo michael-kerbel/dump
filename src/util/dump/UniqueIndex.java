@@ -14,10 +14,7 @@ import gnu.trove.TLongCollection;
 import gnu.trove.iterator.TLongIterator;
 import gnu.trove.list.TLongList;
 import gnu.trove.list.array.TLongArrayList;
-import gnu.trove.map.TIntLongMap;
 import gnu.trove.map.TLongIntMap;
-import gnu.trove.map.TLongLongMap;
-import gnu.trove.map.TObjectLongMap;
 import gnu.trove.map.hash.TIntLongHashMap;
 import gnu.trove.map.hash.TLongIntHashMap;
 import gnu.trove.map.hash.TLongLongHashMap;
@@ -29,10 +26,9 @@ import util.reflection.FieldAccessor;
 
 public class UniqueIndex<E> extends DumpIndex<E> {
 
-   protected TObjectLongMap _lookupObject;
-   protected TLongLongMap   _lookupLong;
-   protected TIntLongMap    _lookupInt;
-
+   protected TObjectLongHashMap _lookupObject;
+   protected TLongLongHashMap   _lookupLong;
+   protected TIntLongHashMap    _lookupInt;
 
    public UniqueIndex( Dump<E> dump, FieldAccessor fieldAccessor ) {
       super(dump, fieldAccessor);
@@ -79,6 +75,9 @@ public class UniqueIndex<E> extends DumpIndex<E> {
 
          _lookupOutputStream.writeLong(pos);
 
+         if ( isCompactLookupNeeded() ) {
+            compactLookup();
+         }
       }
       catch ( IOException argh ) {
          throw new RuntimeException("Failed to add key to index " + getLookupFile(), argh);
@@ -90,7 +89,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
       synchronized ( _dump ) {
          if ( !_fieldIsInt ) {
             throw new IllegalArgumentException(
-               "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate contains(.) method.");
+                  "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate contains(.) method.");
          }
          return _lookupInt.containsKey(key) && !_dump._deletedPositions.contains(_lookupInt.get(key));
       }
@@ -101,7 +100,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
       synchronized ( _dump ) {
          if ( !_fieldIsLong ) {
             throw new IllegalArgumentException(
-               "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate contains(.) method.");
+                  "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate contains(.) method.");
          }
          return _lookupLong.containsKey(key) && !_dump._deletedPositions.contains(_lookupLong.get(key));
       }
@@ -118,7 +117,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
          }
          if ( _fieldIsLong || _fieldIsInt ) {
             throw new IllegalArgumentException(
-               "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate contains(.) method.");
+                  "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate contains(.) method.");
          }
          return _lookupObject.containsKey(key) && !_dump._deletedPositions.contains(_lookupObject.get(key));
       }
@@ -178,7 +177,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
       synchronized ( _dump ) {
          if ( !_fieldIsInt ) {
             throw new IllegalArgumentException(
-               "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookup(.) method.");
+                  "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookup(.) method.");
          }
          long pos = getPosition(key);
          if ( pos < 0 ) {
@@ -192,7 +191,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
       synchronized ( _dump ) {
          if ( !_fieldIsLong ) {
             throw new IllegalArgumentException(
-               "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookup(.) method.");
+                  "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookup(.) method.");
          }
          long pos = getPosition(key);
          if ( pos < 0 ) {
@@ -212,7 +211,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
          }
          if ( _fieldIsLong || _fieldIsInt ) {
             throw new IllegalArgumentException(
-               "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookup(.) method.");
+                  "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate lookup(.) method.");
          }
          long pos = getPosition(key);
          if ( pos < 0 ) {
@@ -224,6 +223,16 @@ public class UniqueIndex<E> extends DumpIndex<E> {
 
    protected void cachePayload( long pos, Object payload ) {}
 
+   protected void compactLookup() {
+      if ( _fieldIsInt ) {
+         _lookupInt.compact();
+      } else if ( _fieldIsLong ) {
+         _lookupLong.compact();
+      } else {
+         _lookupObject.compact();
+      }
+   }
+
    @Override
    protected String getIndexType() {
       return UniqueIndex.class.getSimpleName();
@@ -232,7 +241,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
    protected long getPosition( int key ) {
       if ( !_fieldIsInt ) {
          throw new IllegalArgumentException(
-            "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate getPosition(.) method.");
+               "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate getPosition(.) method.");
       }
       if ( !_lookupInt.containsKey(key) ) {
          return -1;
@@ -243,7 +252,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
    protected long getPosition( long key ) {
       if ( !_fieldIsLong ) {
          throw new IllegalArgumentException(
-            "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate getPosition(.) method.");
+               "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate getPosition(.) method.");
       }
       if ( !_lookupLong.containsKey(key) ) {
          return -1;
@@ -260,12 +269,18 @@ public class UniqueIndex<E> extends DumpIndex<E> {
       }
       if ( _fieldIsLong || _fieldIsInt ) {
          throw new IllegalArgumentException(
-            "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate getPosition(.) method.");
+               "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate getPosition(.) method.");
       }
       if ( !_lookupObject.containsKey(key) ) {
          return -1;
       }
       return _lookupObject.get(key);
+   }
+
+   @Override
+   protected void init() {
+      super.init();
+      compactLookup();
    }
 
    @Override
@@ -288,6 +303,16 @@ public class UniqueIndex<E> extends DumpIndex<E> {
          _lookupLong = new TLongLongHashMap();
       } else {
          _lookupObject = new TObjectLongHashMap();
+      }
+   }
+
+   protected boolean isCompactLookupNeeded() {
+      if ( _fieldIsInt ) {
+         return _lookupInt.size() > 1000 && _lookupInt.size() * 2.5 < _lookupInt._set.length;
+      } else if ( _fieldIsLong ) {
+         return _lookupLong.size() > 1000 && _lookupLong.size() * 2.5 < _lookupLong._set.length;
+      } else {
+         return _lookupObject.size() > 1000 && _lookupObject.size() * 2.5 < _lookupObject._set.length;
       }
    }
 
@@ -327,8 +352,9 @@ public class UniqueIndex<E> extends DumpIndex<E> {
                in = new DataInputStream(new BufferedInputStream(new FileInputStream(getLookupFile())));
                while ( true ) {
                   Object payload = readPayload(in);
-                  if ( payload != null )
+                  if ( payload != null ) {
                      mayEOF = false;
+                  }
                   int key = in.readInt();
                   mayEOF = false;
                   long pos = in.readLong();
@@ -373,8 +399,9 @@ public class UniqueIndex<E> extends DumpIndex<E> {
                in = new DataInputStream(new BufferedInputStream(new FileInputStream(getLookupFile())));
                while ( true ) {
                   Object payload = readPayload(in);
-                  if ( payload != null )
+                  if ( payload != null ) {
                      mayEOF = false;
+                  }
                   long key = in.readLong();
                   mayEOF = false;
                   long pos = in.readLong();
@@ -419,8 +446,9 @@ public class UniqueIndex<E> extends DumpIndex<E> {
                in = new DataInputStream(new BufferedInputStream(new FileInputStream(getLookupFile())));
                while ( true ) {
                   Object payload = readPayload(in);
-                  if ( payload != null )
+                  if ( payload != null ) {
                      mayEOF = false;
+                  }
                   String key = in.readUTF();
                   mayEOF = false;
                   long pos = in.readLong();
@@ -474,8 +502,9 @@ public class UniqueIndex<E> extends DumpIndex<E> {
             try {
                while ( true ) {
                   Object payload = readPayload(in);
-                  if ( payload != null )
+                  if ( payload != null ) {
                      mayEOF = false;
+                  }
                   Object key = in.readObject();
                   mayEOF = false;
                   long pos = in.readLong();
@@ -558,8 +587,9 @@ public class UniqueIndex<E> extends DumpIndex<E> {
          }
       } else {
          Object key = getObjectKey(o);
-         if ( key == null )
+         if ( key == null ) {
             return;
+         }
          long p = _lookupObject.get(key);
          if ( p == pos ) {
             _lookupObject.remove(key);
@@ -597,14 +627,12 @@ public class UniqueIndex<E> extends DumpIndex<E> {
       }
    }
 
-
    /**
     * This Exception is thrown, when trying to add a non-unique index-value to a dump.
     */
    public static class DuplicateKeyException extends RuntimeException {
 
       private static final long serialVersionUID = -7959993269514169802L;
-
 
       public DuplicateKeyException( String message ) {
          super(message);
