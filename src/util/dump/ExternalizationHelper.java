@@ -585,6 +585,7 @@ class ExternalizationHelper {
       ZonedDateTime(ZonedDateTime.class, 48), //
       LocalDate(java.time.LocalDate.class, 49), //
       Instant(java.time.Instant.class, 50), //
+      LocalTime(java.time.LocalTime.class, 51), //
       // TODO add Map (beware of Collections.*Map or Treemaps using custom Comparators!)
       ;
 

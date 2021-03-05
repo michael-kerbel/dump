@@ -51,6 +51,7 @@ import java.math.BigInteger;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Date;
@@ -411,6 +412,22 @@ public interface ExternalizableBean extends Externalizable {
                }
                if ( f != null ) {
                   f.set(this, d);
+               }
+               break;
+            }
+            case LocalTime: {
+               LocalTime t = null;
+               boolean isNotNull = in.readBoolean();
+               if ( isNotNull ) {
+                  int hour = in.readByte();
+                  int minute = in.readByte();
+                  int second = in.readByte();
+                  int nano = in.readInt();
+                  t = LocalTime.of(hour, minute, second, nano);
+               }
+
+               if ( f != null ) {
+                  f.set(this, t);
                }
                break;
             }
@@ -952,6 +969,17 @@ public interface ExternalizableBean extends Externalizable {
                   byte[] bytes = d.unscaledValue().toByteArray();
                   writeByteArray(bytes, out);
                   out.writeInt(d.scale());
+               }
+               break;
+            }
+            case LocalTime: {
+               LocalTime t = (LocalTime)f.get(this);
+               out.writeBoolean(t != null);
+               if ( t != null ) {
+                  out.writeByte(t.getHour());
+                  out.writeByte(t.getMinute());
+                  out.writeByte(t.getSecond());
+                  out.writeInt(t.getNano());
                }
                break;
             }

@@ -22,6 +22,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -231,6 +232,15 @@ public class ExternalizableBeanTest {
                time = Math.max(time, -31556889801248460L);
                time = Math.min(time, 31556889801248460L);
                Instant s = Instant.ofEpochMilli(time);
+               f.set(t, s);
+            } else {
+               f.set(t, null);
+            }
+         } else if ( type == LocalTime.class ) {
+            boolean isNotNull = r.nextBoolean();
+            if ( isNotNull ) {
+               int sec = r.nextInt(24 * 60 * 60 - 1);
+               LocalTime s = LocalTime.ofSecondOfDay(sec);
                f.set(t, s);
             } else {
                f.set(t, null);
@@ -955,6 +965,8 @@ public class ExternalizableBeanTest {
       public LocalDate            _localDate;
       @externalize(42)
       public Instant              _instant;
+      @externalize(43)
+      public LocalTime            _localTime;
 
       public int _i; // this member var gets initialized randomly only if the field is public - a limitation of this testcase
 
