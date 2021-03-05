@@ -81,6 +81,7 @@ class ExternalizationHelper {
          return (Collection)c.newInstance();
       }
       catch ( InstantiationException | IllegalAccessException e ) {
+         LoggerFactory.getLogger(ExternalizationHelper.class).warn("Failed to instantiate externalized collection, will use ArrayList/HashSet as fallback.", e);
          String name = c.getName();
          if ( name.contains("List") ) {
             return new ArrayList();
