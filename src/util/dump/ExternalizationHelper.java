@@ -76,6 +76,22 @@ class ExternalizationHelper {
       return config;
    }
 
+   static Collection instantiateCollection( Class c ) throws IllegalAccessException, InstantiationException {
+      try {
+         return (Collection)c.newInstance();
+      }
+      catch ( InstantiationException | IllegalAccessException e ) {
+         String name = c.getName();
+         if ( name.contains("List") ) {
+            return new ArrayList();
+         }
+         if ( name.contains("Set") ) {
+            return new HashSet();
+         }
+         throw e;
+      }
+   }
+
    static byte[] readByteArray( DataInput in ) throws IOException {
       byte[] d = null;
       boolean isNotNull = in.readBoolean();
@@ -123,7 +139,7 @@ class ExternalizationHelper {
             d = new ArrayList<>();
          } else {
             Class c = forName(className, config);
-            d = (Collection)c.newInstance();
+            d = instantiateCollection(c);
          }
       }
 

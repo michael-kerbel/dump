@@ -457,6 +457,21 @@ public class ExternalizableBeanTest {
    }
 
    @Test
+   public void testInvalidCollectionFallback() throws Exception {
+      Externalizable[] t = new Externalizable[] { new TestBean() };
+      ((TestBean)t[0])._list = List.of(new TestBeanPadding());
+
+      byte[] bytes = write(t);
+
+      ObjectInput i = new ObjectInputStream(new ByteArrayInputStream(bytes));
+      Externalizable[] tt = new Externalizable[] { new TestBean() };
+      tt[0].readExternal(i);
+      i.close();
+
+      assertThat(((TestBean)tt[0])._list).containsExactly(((TestBean)t[0])._list.get(0));
+   }
+
+   @Test
    public void testPadding() throws IOException {
       for ( int i = 0; i < 2001; i++ ) {
          TestBeanPadding bean = new TestBeanPadding();
