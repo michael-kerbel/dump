@@ -3,6 +3,7 @@ package util.dump;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -241,6 +242,8 @@ public class SearchIndex<E> extends DumpIndex<E> {
 
    /**
     * Searches for entries in the dump using the given Lucene query, loading all matching items lazily from the dump during iteration.
+    * Due to this lazy iteration the elements returned by this iterator might be null, if they have been meanwhile deleted. If you need
+    * non-null results, use {@link #searchBlocking(String, int)}.
     * @param query a valid Lucene Query, which will be parsed using the provided Analyzer or StandardAnalyzer, if none provided.
     * @param maxHits the maximum number of results to return
     */
@@ -272,6 +275,21 @@ public class SearchIndex<E> extends DumpIndex<E> {
             }
          };
       });
+   }
+
+   /**
+    * Searches for entries in the dump using the given Lucene query, loading all matching items eagerly from the dump.
+    * @param query a valid Lucene Query, which will be parsed using the provided Analyzer or StandardAnalyzer, if none provided.
+    * @param maxHits the maximum number of results to return
+    */
+   public List<E> searchBlocking( String query, int maxHits ) throws ParseException, IOException {
+      synchronized ( _dump ) {
+         ArrayList<E> result = new ArrayList<>();
+         for ( E e : search(query, maxHits) ) {
+            result.add(e);
+         }
+         return result;
+      }
    }
 
    @Override
