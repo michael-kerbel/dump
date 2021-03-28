@@ -1,6 +1,10 @@
 package util.dump;
 
 import static org.fest.assertions.Assertions.assertThat;
+import static util.dump.SearchIndex.SortBuilder.Direction.ASC;
+import static util.dump.SearchIndex.SortBuilder.Direction.DESC;
+import static util.dump.SearchIndex.sort;
+import static util.dump.SearchIndex.with;
 
 import java.io.File;
 import java.io.IOException;
@@ -10,9 +14,11 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import org.apache.lucene.document.Field.Store;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.facet.FacetField;
 import org.apache.lucene.facet.FacetResult;
+import org.apache.lucene.util.BytesRef;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -58,7 +64,10 @@ public class SearchIndexTest {
 
       try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile)) {
 
-         SearchIndex<Bean> index = SearchIndex.with(dump, "_idLong", ( doc, o ) -> doc.add(new TextField("data", o._data, Store.NO))).build();
+         SearchIndex<Bean> index = with(dump, "_idLong", ( doc, o ) -> {
+            doc.add(new SortedDocValuesField("id", new BytesRef(o._idString)));
+            doc.add(new TextField("data", o._data, Store.NO));
+         }).build();
 
          Bean firstBean = new Bean(1, "first  row");
          dump.add(firstBean);
@@ -85,9 +94,16 @@ public class SearchIndexTest {
 
          beans = search(index, "data:third");
          assertSingleResult(beans, thirdBean);
-         dump.deleteLast();
 
+         beans = index.searchBlocking("data:row OR data:third", 999, sort().byText("id", DESC).build());
+         assertThat(beans).containsExactly(thirdBean, secondBean, firstBean);
+         beans = index.searchBlocking("data:row OR data:third", 999, sort().byText("id", ASC).build());
+         assertThat(beans).containsExactly(firstBean, secondBean, thirdBean);
+
+         search(index, "data:third");
+         dump.deleteLast();
          assertThat(index.getNumKeys()).as("deletion failed").isEqualTo(2);
+
          beans = search(index, "data:third");
          assertThat(beans).as("deletion failed").isEmpty();
 
@@ -103,7 +119,7 @@ public class SearchIndexTest {
 
       try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile)) {
 
-         SearchIndex<Bean> index = SearchIndex.with(dump, "_idLong", ( doc, o ) -> doc.add(new TextField("data", o._data, Store.NO))).build();
+         SearchIndex<Bean> index = with(dump, "_idLong", ( doc, o ) -> doc.add(new TextField("data", o._data, Store.NO))).build();
 
          List<Bean> beans = search(index, "data:row");
          assertThat(beans.isEmpty()).as("query did not find items").isFalse();
@@ -116,7 +132,7 @@ public class SearchIndexTest {
       File dumpFile = new File(_tmpdir, DUMP_FILENAME);
 
       try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile)) {
-         SearchIndex<Bean> index = SearchIndex.with(dump, "_idLong", ( doc, o ) -> doc.add(new FacetField("facetField", o._data))).build();
+         SearchIndex<Bean> index = with(dump, "_idLong", ( doc, o ) -> doc.add(new FacetField("facetField", o._data))).build();
 
          for ( int i = 0; i < 100; i++ ) {
             dump.add(new Bean(i, "" + i % 10));
@@ -155,7 +171,7 @@ public class SearchIndexTest {
 
       try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile)) {
 
-         SearchIndex<Bean> index = SearchIndex.with(dump, "_idLong", ( doc, o ) -> doc.add(new TextField("data", o._data, Store.NO))).withVersion(1).build();
+         SearchIndex<Bean> index = with(dump, "_idLong", ( doc, o ) -> doc.add(new TextField("data", o._data, Store.NO))).withVersion(1).build();
 
          Bean firstBean = new Bean(1, "first row");
          dump.add(firstBean);
@@ -168,7 +184,7 @@ public class SearchIndexTest {
 
       try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile)) {
 
-         SearchIndex<Bean> index = SearchIndex.with(dump, "_idLong", ( doc, o ) -> doc.add(new TextField("data", o._data, Store.NO))).withVersion(2).build();
+         SearchIndex<Bean> index = with(dump, "_idLong", ( doc, o ) -> doc.add(new TextField("data", o._data, Store.NO))).withVersion(2).build();
 
          Bean firstBean = new Bean(1, "first row");
          dump.add(firstBean);
@@ -214,40 +230,40 @@ public class SearchIndexTest {
       }
 
       @Override
-      public boolean equals( Object obj ) {
-         if ( this == obj ) {
+      public boolean equals( Object o ) {
+         if ( this == o ) {
             return true;
          }
-         if ( obj == null ) {
+         if ( o == null || getClass() != o.getClass() ) {
             return false;
          }
-         if ( getClass() != obj.getClass() ) {
+
+         Bean bean = (Bean)o;
+
+         if ( _idLong != bean._idLong ) {
             return false;
          }
-         Bean other = (Bean)obj;
-         if ( _data == null ) {
-            if ( other._data != null ) {
-               return false;
-            }
-         } else if ( !_data.equals(other._data) ) {
+         if ( _idInt != bean._idInt ) {
             return false;
          }
-         if ( _idInt != other._idInt ) {
+         if ( _idString != null ? !_idString.equals(bean._idString) : bean._idString != null ) {
             return false;
          }
-         if ( _idLong != other._idLong ) {
-            return false;
-         }
-         if ( _idString == null ) {
-            return other._idString == null;
-         } else {
-            return _idString.equals(other._idString);
-         }
+         return _data != null ? _data.equals(bean._data) : bean._data == null;
       }
 
       @Override
       public int hashCode() {
-         throw new UnsupportedOperationException("hashCode() not needed.");
+         int result = (int)(_idLong ^ (_idLong >>> 32));
+         result = 31 * result + _idInt;
+         result = 31 * result + (_idString != null ? _idString.hashCode() : 0);
+         result = 31 * result + (_data != null ? _data.hashCode() : 0);
+         return result;
+      }
+
+      @Override
+      public String toString() {
+         return "Bean{" + "_idLong=" + _idLong + ", _data='" + _data + '\'' + '}';
       }
    }
 }

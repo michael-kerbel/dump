@@ -33,6 +33,7 @@ public class IndexSizeTest {
       }
       System.setProperty("java.io.tmpdir", _tmpdir.getAbsolutePath());
    }
+
    private Random _random = new Random();
 
    @Before
@@ -63,7 +64,7 @@ public class IndexSizeTest {
 
          for ( int i = 0; i < NUM_ITEMS; i++ ) {
             dump.add(new Bean(i, randomString()));
-            index.getSearcher(); // force commit
+            index.commit(); // force commit
          }
 
          long dirSize = dirSize(indexDir);
@@ -72,7 +73,7 @@ public class IndexSizeTest {
          for ( Bean b : dump ) {
             b._data = randomString();
             dump.updateLast(b);
-            index.getSearcher(); // force commit
+            index.commit(); // force commit
          }
 
          dirSize = dirSize(indexDir);

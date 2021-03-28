@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -25,7 +26,6 @@ import org.apache.lucene.facet.taxonomy.FastTaxonomyFacetCounts;
 import org.apache.lucene.facet.taxonomy.TaxonomyReader;
 import org.apache.lucene.facet.taxonomy.directory.DirectoryTaxonomyReader;
 import org.apache.lucene.facet.taxonomy.directory.DirectoryTaxonomyWriter;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
@@ -35,6 +35,10 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.SearcherFactory;
+import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -75,9 +79,15 @@ public class SearchIndex<E> extends DumpIndex<E> {
 
    private static final Logger _log = LoggerFactory.getLogger(SearchIndex.class);
 
-   public static <T> SearchIndexBuilder<T> with( @Nonnull Dump<T> dump, @Nonnull String idFieldName, @Nonnull BiConsumer<Document, T> documentBuilder )
-         throws NoSuchFieldException {
-      return new SearchIndexBuilder<>(dump, new FieldFieldAccessor(Reflection.getField(dump._beanClass, idFieldName)), documentBuilder);
+   /**
+    * BEWARE: When using fields for sorting, you need to add SortedDocValuesFields during indexing, e.g.
+    * <pre>{@code
+    *   doc.add(new SortedDocValuesField("stringField", new BytesRef(string)));
+    *   doc.add(new SortedDocValuesField("longField", longVal));
+    * }</pre>
+    */
+   public static SortBuilder sort() {
+      return new SortBuilder();
    }
 
    public static <T> SearchIndexBuilder<T> with( @Nonnull Dump<T> dump, @Nonnull FieldAccessor idFieldAccessor,
@@ -85,9 +95,14 @@ public class SearchIndex<E> extends DumpIndex<E> {
       return new SearchIndexBuilder<>(dump, idFieldAccessor, documentBuilder);
    }
 
+   public static <T> SearchIndexBuilder<T> with( @Nonnull Dump<T> dump, @Nonnull String idFieldName, @Nonnull BiConsumer<Document, T> documentBuilder )
+         throws NoSuchFieldException {
+      return new SearchIndexBuilder<>(dump, new FieldFieldAccessor(Reflection.getField(dump._beanClass, idFieldName)), documentBuilder);
+   }
+
    private IndexWriter             _writer;
    private QueryParser             _parser;
-   private IndexSearcher           _searcher;
+   private SearcherManager         _searcherManager;
    private BiConsumer<Document, E> _documentBuilder;
    private IndexWriterConfig       _config;
    private AtomicBoolean           _commitIsPending = new AtomicBoolean(false);
@@ -122,8 +137,8 @@ public class SearchIndex<E> extends DumpIndex<E> {
       if ( _taxoWriter != null ) {
          _taxoWriter.close();
       }
-      if ( _searcher != null && _searcher.getIndexReader() != null ) {
-         _searcher.getIndexReader().close();
+      if ( _searcherManager != null ) {
+         _searcherManager.close();
       }
       if ( _taxoReader != null ) {
          _taxoReader.close();
@@ -173,14 +188,14 @@ public class SearchIndex<E> extends DumpIndex<E> {
     * @param query a valid Lucene Query, which will be parsed using the provided Analyzer or StandardAnalyzer, if none provided.
     */
    public int countMatches( String query ) throws ParseException, IOException {
-      return retryOnAlreadyClosed(() -> getSearcher().count(parse(query)));
+      return retryOnAlreadyClosed(() -> withSearcher(s -> s.count(parse(query))));
    }
 
    public List<FacetResult> facetSearch( String query ) throws ParseException, IOException {
       return retryOnAlreadyClosed(() -> {
          FacetsCollector fc = new FacetsCollector();
 
-         FacetsCollector.search(getSearcher(), parse(query), 0, fc);
+         withSearcher(s -> FacetsCollector.search(s, parse(query), 0, fc));
 
          Facets facets = new FastTaxonomyFacetCounts(getTaxonomyReader(), _facetsConfig, fc);
          return facets.getAllDims(Integer.MAX_VALUE);
@@ -204,20 +219,11 @@ public class SearchIndex<E> extends DumpIndex<E> {
    @Override
    public int getNumKeys() {
       try {
-         return getSearcher().getIndexReader().numDocs();
+         return withSearcher(s -> s.getIndexReader().numDocs());
       }
-      catch ( IOException e ) {
+      catch ( ParseException | IOException e ) {
          throw new RuntimeException("Failed to query number of docs", e);
       }
-   }
-
-   public IndexSearcher getSearcher() throws IOException {
-      commit();
-      DirectoryReader reader = DirectoryReader.openIfChanged((DirectoryReader)_searcher.getIndexReader(), _writer, false);
-      if ( reader != null ) {
-         _searcher = new IndexSearcher(reader);
-      }
-      return _searcher;
    }
 
    public TaxonomyReader getTaxonomyReader() throws IOException {
@@ -234,23 +240,55 @@ public class SearchIndex<E> extends DumpIndex<E> {
 
    /**
     * Searches for entries in the dump using the given Lucene query, loading all matching items lazily from the dump during iteration.
+    * Due to this lazy iteration the elements returned by this iterator might be null, if they have been meanwhile deleted. If you need
+    * non-null results, use {@link #searchBlocking(String, int, Sort)}.
     * @param query a valid Lucene Query, which will be parsed using the provided Analyzer or StandardAnalyzer, if none provided.
     */
    public Iterable<E> search( String query ) throws ParseException, IOException {
-      return search(query, getNumKeys());
+      return search(query, getNumKeys(), null);
    }
 
    /**
     * Searches for entries in the dump using the given Lucene query, loading all matching items lazily from the dump during iteration.
     * Due to this lazy iteration the elements returned by this iterator might be null, if they have been meanwhile deleted. If you need
-    * non-null results, use {@link #searchBlocking(String, int)}.
+    * non-null results, use {@link #searchBlocking(String, int, Sort)}.
+    * @param query a valid Lucene Query, which will be parsed using the provided Analyzer or StandardAnalyzer, if none provided.
+    * @param sort an sorting order of the results, a SortBuilder might be obtained using {@link #sort()}
+    */
+   public Iterable<E> search( String query, Sort sort ) throws ParseException, IOException {
+      return search(query, getNumKeys(), sort);
+   }
+
+   /**
+    * Searches for entries in the dump using the given Lucene query, loading all matching items lazily from the dump during iteration.
+    * Due to this lazy iteration the elements returned by this iterator might be null, if they have been meanwhile deleted. If you need
+    * non-null results, use {@link #searchBlocking(String, int, Sort)}.
     * @param query a valid Lucene Query, which will be parsed using the provided Analyzer or StandardAnalyzer, if none provided.
     * @param maxHits the maximum number of results to return
     */
-   @SuppressWarnings("unchecked") // missing <> in "new Iterator()..." is a workaround for compiler bug in JDK 11.0.2
    public Iterable<E> search( String query, int maxHits ) throws ParseException, IOException {
+      return search(query, maxHits, null);
+   }
+
+   /**
+    * Searches for entries in the dump using the given Lucene query, loading all matching items lazily from the dump during iteration.
+    * Due to this lazy iteration the elements returned by this iterator might be null, if they have been meanwhile deleted. If you need
+    * non-null results, use {@link #searchBlocking(String, int, Sort)}.
+    * @param query a valid Lucene Query, which will be parsed using the provided Analyzer or StandardAnalyzer, if none provided.
+    * @param maxHits the maximum number of results to return
+    * @param sort an optional sorting order of the results, a SortBuilder might be obtained using {@link #sort()}
+    */
+   @SuppressWarnings("unchecked") // missing <> in "new Iterator()..." is a workaround for compiler bug in JDK 11.0.2
+   public Iterable<E> search( String query, int maxHits, @Nullable Sort sort ) throws ParseException, IOException {
       return retryOnAlreadyClosed(() -> {
-         ScoreDoc[] docs = getSearcher().search(parse(query), Math.max(1, maxHits)).scoreDocs;
+
+         ScoreDoc[] docs = withSearcher(s -> {
+            if ( sort != null ) {
+               return s.search(parse(query), Math.max(1, maxHits), sort).scoreDocs;
+            }
+            return s.search(parse(query), Math.max(1, maxHits)).scoreDocs;
+         });
+
          return () -> new Iterator() {
 
             int i = 0;
@@ -263,13 +301,13 @@ public class SearchIndex<E> extends DumpIndex<E> {
             @Override
             public E next() {
                try {
-                  Document doc = getSearcher().doc(docs[i].doc);
+                  Document doc = withSearcher(s -> s.doc(docs[i].doc));
                   String pos = doc.get("pos");
                   E e = _dump.get(Long.parseLong(pos));
                   i++;
                   return e;
                }
-               catch ( IOException e ) {
+               catch ( ParseException | IOException e ) {
                   throw new RuntimeException("Failed to perform search", e);
                }
             }
@@ -281,11 +319,12 @@ public class SearchIndex<E> extends DumpIndex<E> {
     * Searches for entries in the dump using the given Lucene query, loading all matching items eagerly from the dump.
     * @param query a valid Lucene Query, which will be parsed using the provided Analyzer or StandardAnalyzer, if none provided.
     * @param maxHits the maximum number of results to return
+    * @param sort an optional sorting order of the results, a SortBuilder might be obtained using {@link #sort()}
     */
-   public List<E> searchBlocking( String query, int maxHits ) throws ParseException, IOException {
+   public List<E> searchBlocking( String query, int maxHits, @Nullable Sort sort ) throws ParseException, IOException {
       synchronized ( _dump ) {
          ArrayList<E> result = new ArrayList<>();
-         for ( E e : search(query, maxHits) ) {
+         for ( E e : search(query, maxHits, sort) ) {
             result.add(e);
          }
          return result;
@@ -348,7 +387,7 @@ public class SearchIndex<E> extends DumpIndex<E> {
 
    protected void openSearcher() {
       try {
-         _searcher = new IndexSearcher(DirectoryReader.open(FSDirectory.open(getLookupFile().toPath())));
+         _searcherManager = new SearcherManager(_writer, new SearcherFactory());
       }
       catch ( IOException e ) {
          throw new RuntimeException("Failed to initialize dump index with lookup file " + getLookupFile(), e);
@@ -438,6 +477,30 @@ public class SearchIndex<E> extends DumpIndex<E> {
       throw new RuntimeException("Failed to execute search, even after multiple retries", e);
    }
 
+   private <T> T withSearcher( ThrowingFunction<IndexSearcher, T> f ) throws ParseException, IOException {
+      commit();
+      _searcherManager.maybeRefreshBlocking();
+      IndexSearcher s = _searcherManager.acquire();
+      try {
+         return f.apply(s);
+      }
+      finally {
+         _searcherManager.release(s);
+      }
+   }
+
+   @FunctionalInterface
+   public interface ThrowingFunction<T, R> {
+
+      /**
+       * Gets a result.
+       *
+       * @return a result
+       */
+      R apply( T t ) throws ParseException, IOException;
+   }
+
+
    @FunctionalInterface
    public interface ThrowingSupplier<T> {
 
@@ -454,15 +517,15 @@ public class SearchIndex<E> extends DumpIndex<E> {
 
       private Dump<E>                 _dump;
       private BiConsumer<Document, E> _documentBuilder;
-      FieldAccessor _idFieldAccessor;
-      private Analyzer          _analyzer;
-      private QueryParser       _queryParser;
-      private FacetsConfig      _facetsConfig;
-      private IndexWriterConfig _indexWriterConfig;
-      private String[]          _longFieldNames;
-      private String[]          _doubleFieldNames;
-      private String[]          _multiValuedFacetFields;
-      private int               _version = 0;
+      private FieldAccessor           _idFieldAccessor;
+      private Analyzer                _analyzer;
+      private QueryParser             _queryParser;
+      private FacetsConfig            _facetsConfig;
+      private IndexWriterConfig       _indexWriterConfig;
+      private String[]                _longFieldNames;
+      private String[]                _doubleFieldNames;
+      private String[]                _multiValuedFacetFields;
+      private int                     _version = 0;
 
       public SearchIndexBuilder( Dump<E> dump, FieldAccessor idFieldAccessor, BiConsumer<Document, E> documentBuilder ) {
          _dump = dump;
@@ -536,6 +599,31 @@ public class SearchIndex<E> extends DumpIndex<E> {
          return this;
       }
 
+   }
+
+
+   public static class SortBuilder {
+
+      List<SortField> _sortFields = new ArrayList<>();
+
+      public Sort build() {
+         return new Sort(_sortFields.toArray(SortField[]::new));
+      }
+
+      public SortBuilder byLong( String field, Direction direction ) {
+         _sortFields.add(new SortField(field, SortField.Type.LONG, direction == Direction.DESC));
+         return this;
+      }
+
+      public SortBuilder byText( String field, Direction direction ) {
+         _sortFields.add(new SortField(field, SortField.Type.STRING, direction == Direction.DESC));
+         return this;
+      }
+
+      enum Direction {
+         ASC,
+         DESC
+      }
    }
 
 }
