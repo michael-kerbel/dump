@@ -620,7 +620,7 @@ public class SearchIndex<E> extends DumpIndex<E> {
          return this;
       }
 
-      enum Direction {
+      public enum Direction {
          ASC,
          DESC
       }
