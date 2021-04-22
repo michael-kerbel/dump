@@ -307,6 +307,9 @@ class ExternalizationHelper {
       boolean isNotNull = in.readBoolean();
       if ( isNotNull ) {
          s = DumpUtils.readUTF(in);
+         if ( s.equals("") ) {
+            return ""; // use interned instance
+         }
       }
       return s;
    }
