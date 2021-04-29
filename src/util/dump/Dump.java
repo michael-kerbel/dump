@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -135,7 +136,7 @@ public class Dump<E> implements DumpInput<E> {
       return null;
    }
 
-   final Class _beanClass;
+   final Class<? extends E> _beanClass;
    ObjectStreamProvider _streamProvider;
    final File _dumpFile;
    File              _deletionsFile;
@@ -188,6 +189,8 @@ public class Dump<E> implements DumpInput<E> {
    String _instantiationDetails;
 
    Set<DeletionAwareDumpReader> _allOpenedDumpReaders = new HashSet<>();
+
+   AtomicBoolean _dirty = new AtomicBoolean(false);
 
    /**
     * Constructs a new Dump with <code>beanClass</code> as instance class. If the dump already exists, it will be re-opened.<p/>
@@ -250,7 +253,7 @@ public class Dump<E> implements DumpInput<E> {
       initInstantiationData();
       if ( OPENED_DUMPPATHS.contains(_dumpFile.getPath()) ) {
          String instantiationDetails = "";
-         for ( Dump d : OPENED_DUMPS ) {
+         for ( @SuppressWarnings("rawtypes") Dump d : OPENED_DUMPS ) {
             if ( d.getDumpFile().equals(dumpFile) ) {
                instantiationDetails = d._instantiationDetails;
             }
@@ -310,8 +313,8 @@ public class Dump<E> implements DumpInput<E> {
          if ( !(streamProvider instanceof SingleTypeObjectStreamProvider) ) {
             throw new IllegalArgumentException("cacheSize may not be greater 0 when not using SingleTypeObjectStreamProvider.");
          }
-         _cache = new SoftLRUCache(cacheSize); // no synchronization needed, since get(.) is synchronized
-         _cacheByteInput = new ResettableBufferedInputStream((FileChannel)null, 64 * 1024, 0, false);
+         _cache = new SoftLRUCache<Long, byte[]>(cacheSize); // no synchronization needed, since get(.) is synchronized
+         _cacheByteInput = new ResettableBufferedInputStream(null, 64 * 1024, 0, false);
          try {
             _cacheObjectInput = streamProvider.createObjectInput(_cacheByteInput);
          }
@@ -332,15 +335,16 @@ public class Dump<E> implements DumpInput<E> {
          }
          assertOpen();
          for ( DumpIndex<E> index : _indexes ) {
-            if ( index instanceof UniqueIndex && index.contains(((UniqueIndex)index).getKey(o)) && !index.getIndexType()
+            if ( index instanceof UniqueIndex && index.contains(((UniqueIndex<E>)index).getKey(o)) && !index.getIndexType()
                   .equals(GroupedIndex.class.getSimpleName()) ) {
                // check this before actually adding anything
-               throw new DuplicateKeyException("Dump already contains an instance with the key " + ((UniqueIndex)index).getKey(o));
+               throw new DuplicateKeyException("Dump already contains an instance with the key " + ((UniqueIndex<E>)index).getKey(o));
             }
          }
          long pos = _outputStream._n;
          _writer.write(o);
          _sequence++;
+         _dirty.set(true);
          for ( DumpIndex<E> index : _indexes ) {
             index.add(o, pos);
          }
@@ -407,7 +411,7 @@ public class Dump<E> implements DumpInput<E> {
          _metaRaf.close();
          _metaRaf = null;
       }
-      for ( DumpIndex index : new ArrayList<>(_indexes) ) {
+      for ( DumpIndex<E> index : new ArrayList<>(_indexes) ) {
          index.close();
       }
       for ( DeletionAwareDumpReader openedDumpReader : _allOpenedDumpReaders ) {
@@ -457,10 +461,13 @@ public class Dump<E> implements DumpInput<E> {
          catch ( IOException argh ) {
             throw new RuntimeException("Failed to add deletion to " + _deletionsFile, argh);
          }
+         finally {
+            _dirty.set(true);
+         }
 
          _sequence++;
 
-         for ( DumpIndex index : _indexes ) {
+         for ( DumpIndex<E> index : _indexes ) {
             index.delete(e, pos);
          }
 
@@ -490,9 +497,10 @@ public class Dump<E> implements DumpInput<E> {
    public void flush() throws IOException {
       _outputStream.flush();
       _outputStreamChannel.force(false);
-      for ( DumpIndex index : new ArrayList<>(_indexes) ) {
+      for ( DumpIndex<E> index : new ArrayList<>(_indexes) ) {
          index.flush();
       }
+      _dirty.set(false);
    }
 
    /**
@@ -506,7 +514,7 @@ public class Dump<E> implements DumpInput<E> {
          _deletionsOutputChannel.force(false);
       }
       writeMeta();
-      for ( DumpIndex index : new ArrayList<>(_indexes) ) {
+      for ( DumpIndex<E> index : new ArrayList<>(_indexes) ) {
          index.flushMeta();
       }
    }
@@ -544,7 +552,9 @@ public class Dump<E> implements DumpInput<E> {
          }
 
          try {
-            flush();
+            if ( _dirty.get() ) {
+               flush();
+            }
 
             if ( _resettableBufferedInputStream == null || _resettableBufferedInputStream._rafPos != pos ) {
                // only seek if we don't do sequential reads
@@ -625,7 +635,9 @@ public class Dump<E> implements DumpInput<E> {
    public DumpReader<E> getDumpReader() {
       assertOpen();
       try {
-         flush();
+         if ( _dirty.get() ) {
+            flush();
+         }
          return new DeletionAwareDumpReader(_dumpFile, _streamProvider);
       }
       catch ( IOException argh ) {
@@ -670,7 +682,9 @@ public class Dump<E> implements DumpInput<E> {
    public DumpIterator<E> iterator() {
       assertOpen();
       try {
-         flush();
+         if ( _dirty.get() ) {
+            flush();
+         }
          return new DeletionAwareDumpReader(_dumpFile, _streamProvider).iterator();
       }
       catch ( IOException argh ) {
@@ -678,8 +692,11 @@ public class Dump<E> implements DumpInput<E> {
       }
    }
 
-   public MultithreadedDumpReader<E> multithreadedIterator( DumpIndex index ) {
+   public MultithreadedDumpReader<E> multithreadedIterator( DumpIndex<E> index ) {
       try {
+         if ( _dirty.get() ) {
+            flush();
+         }
          return new MultithreadedDumpReader<>(this, index);
       }
       catch ( IOException argh ) {
@@ -781,7 +798,7 @@ public class Dump<E> implements DumpInput<E> {
                System.arraycopy(oldBytes, nb.length, newBytes, nb.length, suffixLength);
 
                boolean indexesUpdatable = true;
-               for ( DumpIndex index : _indexes ) {
+               for ( DumpIndex<E> index : _indexes ) {
                   indexesUpdatable &= index.isUpdatable(oldItem, newItem);
                }
 
@@ -790,7 +807,7 @@ public class Dump<E> implements DumpInput<E> {
                      throw new AccessControlException("Update in place operation not allowed with current modes.");
                   }
                   overwrite(pos, nb);
-                  for ( DumpIndex index : _indexes ) {
+                  for ( DumpIndex<E> index : _indexes ) {
                      index.update(pos, oldItem, newItem);
                   }
                   if ( _cache != null ) {
@@ -804,6 +821,7 @@ public class Dump<E> implements DumpInput<E> {
             if ( _cache == _singleItemCache ) {
                _cache = null;
             }
+            _dirty.set(true);
          }
 
          // overwriting was not possible -> delete old version and add new version
@@ -961,7 +979,7 @@ public class Dump<E> implements DumpInput<E> {
       return _deletedPositions.size() > PRUNE_THRESHOLD;
    }
 
-   void addIndex( DumpIndex index ) {
+   void addIndex( DumpIndex<E> index ) {
       if ( !_mode.contains(DumpAccessFlag.indices) ) {
          throw new AccessControlException("Using indices is not allowed with current modes.");
       }
@@ -1037,7 +1055,7 @@ public class Dump<E> implements DumpInput<E> {
       }
    }
 
-   void removeIndex( DumpIndex index ) {
+   void removeIndex( DumpIndex<E> index ) {
       _indexes.remove(index);
    }
 
@@ -1071,7 +1089,7 @@ public class Dump<E> implements DumpInput<E> {
    }
 
    private void checkVersion() throws IOException {
-      externalizationVersion version = (externalizationVersion)_beanClass.getAnnotation(externalizationVersion.class);
+      externalizationVersion version = _beanClass.getAnnotation(externalizationVersion.class);
       if ( version != null ) {
          int newVersion = version.version();
          initMeta();
@@ -1235,9 +1253,50 @@ public class Dump<E> implements DumpInput<E> {
    }
 
 
+   static class PositionAwareOutputStream extends OutputStream {
+
+      long _n;
+
+      private final OutputStream _out;
+
+      public PositionAwareOutputStream( OutputStream out, long n ) {
+         _out = out;
+         _n = n;
+      }
+
+      @Override
+      public void close() throws IOException {
+         _out.close();
+      }
+
+      @Override
+      public void flush() throws IOException {
+         _out.flush();
+      }
+
+      @Override
+      public void write( @Nonnull byte[] b ) throws IOException {
+         _out.write(b);
+         _n += b.length;
+      }
+
+      @Override
+      public void write( @Nonnull byte[] b, int off, int len ) throws IOException {
+         _out.write(b, off, len);
+         _n += len;
+      }
+
+      @Override
+      public void write( int b ) throws IOException {
+         _out.write(b);
+         _n++;
+      }
+   }
+
+
    static class ResettableBufferedInputStream extends InputStream {
 
-      private static int defaultBufferSize = 1024 * 1024; // this was determined by experiments on a HD
+      private final static int defaultBufferSize = 1024 * 1024; // this was determined by experiments on a HD
 
       /**
        * The internal buffer array where the data is stored. When necessary,
@@ -1584,6 +1643,15 @@ public class Dump<E> implements DumpInput<E> {
    }
 
 
+   private static final class LongThreadLocal extends ThreadLocal<Long> {
+
+      @Override
+      protected Long initialValue() {
+         return -1L;
+      }
+   }
+
+
    class DeletionAwareDumpReader extends DumpReader<E> implements DumpIterator<E> {
 
       ResettableBufferedInputStream _positionAwareInputStream;
@@ -1659,56 +1727,6 @@ public class Dump<E> implements DumpInput<E> {
       void closeStreams( boolean isEOF ) {
          super.closeStreams(isEOF);
          _allOpenedDumpReaders.remove(this);
-      }
-   }
-
-
-   class PositionAwareOutputStream extends OutputStream {
-
-      long _n;
-
-      private final OutputStream _out;
-
-      public PositionAwareOutputStream( OutputStream out, long n ) {
-         _out = out;
-         _n = n;
-      }
-
-      @Override
-      public void close() throws IOException {
-         _out.close();
-      }
-
-      @Override
-      public void flush() throws IOException {
-         _out.flush();
-      }
-
-      @Override
-      public void write( @Nonnull byte[] b ) throws IOException {
-         _out.write(b);
-         _n += b.length;
-      }
-
-      @Override
-      public void write( @Nonnull byte[] b, int off, int len ) throws IOException {
-         _out.write(b, off, len);
-         _n += len;
-      }
-
-      @Override
-      public void write( int b ) throws IOException {
-         _out.write(b);
-         _n++;
-      }
-   }
-
-
-   private final class LongThreadLocal extends ThreadLocal<Long> {
-
-      @Override
-      protected Long initialValue() {
-         return -1L;
       }
    }
 }
