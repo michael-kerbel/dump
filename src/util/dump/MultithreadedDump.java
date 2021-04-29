@@ -19,26 +19,16 @@ public class MultithreadedDump<E> extends Dump<E> {
 
    ThreadLocal<ByteArrayOutputStream> _byteOutputs   = ThreadLocal.withInitial(() -> new ByteArrayOutputStream(4096));
    ThreadLocal<ObjectOutput>          _objectOutputs = ThreadLocal.withInitial(() -> {
-                                                        try {
-                                                           return _streamProvider.createObjectOutput(_byteOutputs.get());
-                                                        }
-                                                        catch ( IOException e ) {
-                                                           throw new RuntimeException("Failed to create ObjectOutputStream", e);
-                                                        }
-                                                     });
-
+      try {
+         return _streamProvider.createObjectOutput(_byteOutputs.get());
+      }
+      catch ( IOException e ) {
+         throw new RuntimeException("Failed to create ObjectOutputStream", e);
+      }
+   });
 
    public MultithreadedDump( Class beanClass, File dumpFile ) {
       super(beanClass, dumpFile);
-   }
-
-   public void addSilently( E o ) {
-      try {
-         add(o);
-      }
-      catch ( IOException e ) {
-         throw new RuntimeException("Failed to add to dump", e);
-      }
    }
 
    @Override
@@ -65,9 +55,19 @@ public class MultithreadedDump<E> extends Dump<E> {
          long pos = _outputStream._n;
          _outputStream.write(bytes);
          _sequence++;
+         _dirty.set(true);
          for ( DumpIndex<E> index : _indexes ) {
             index.add(o, pos);
          }
+      }
+   }
+
+   public void addSilently( E o ) {
+      try {
+         add(o);
+      }
+      catch ( IOException e ) {
+         throw new RuntimeException("Failed to add to dump", e);
       }
    }
 }
