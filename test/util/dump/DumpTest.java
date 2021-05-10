@@ -98,11 +98,19 @@ public class DumpTest {
       try (Dump<TestBeanPadding> dump = new Dump<>(TestBeanPadding.class, dumpFile)) {
          TestBeanPadding bean = new TestBeanPadding();
          bean._data = new byte[100];
+         bean._data[0] = 1;
          dump.add(bean);
-         assertThat(dump.getDumpSize()).as("unexpected dump size before update").isEqualTo(1000);
+         bean._data[0] = 2;
+         dump.add(bean);
+         dump.flush();
+         assertThat(dump.getDumpSize()).as("unexpected dump size before update").isEqualTo(2000);
          bean._data = new byte[200];
+         bean._data[0] = 3;
          dump.update(0, bean);
-         assertThat(dump.getDumpSize()).as("unexpected dump size after update").isEqualTo(1000);
+         dump.flush();
+         assertThat(dump.getDumpSize()).as("unexpected dump size after update").isEqualTo(2000);
+         assertThat(dump.get(0)._data[0]).as("unexpected data after update").isEqualTo((byte)3);
+         assertThat(dump.get(1000)._data[0]).as("unexpected data after update").isEqualTo((byte)2);
       }
    }
 
@@ -127,6 +135,42 @@ public class DumpTest {
       dump = new Dump<>(Bean.class, dumpFile);
       assertThat(dump.getMetaValue("test")).isEqualTo("test");
       dump.close();
+   }
+
+   @Test
+   public void testOutOfPlaceUpdateWithPadding() throws Exception {
+      File dumpFile = new File("DumpTest.dmp");
+      try (Dump<TestBeanPadding> dump = new Dump<>(TestBeanPadding.class, dumpFile)) {
+         TestBeanPadding bean = new TestBeanPadding();
+         bean._data = new byte[100];
+         bean._data[0] = 1;
+         dump.add(bean);
+         bean._data[0] = 2;
+         dump.add(bean);
+         dump.flush();
+         assertThat(dump.getDumpSize()).as("unexpected dump size before update").isEqualTo(2000);
+         bean._data = new byte[1500];
+         bean._data[0] = 3;
+         dump.update(0, bean);
+         dump.flush();
+         assertThat(dump.getDumpSize()).as("unexpected dump size after update").isEqualTo(4000);
+         assertThat(dump.get(2000)._data[0]).as("unexpected data after update").isEqualTo((byte)3);
+         assertThat(dump.get(1000)._data[0]).as("unexpected data after update").isEqualTo((byte)2);
+      }
+
+      try (Dump<TestBeanPadding> dump = new Dump<>(TestBeanPadding.class, dumpFile)) {
+         int n = 0;
+         for ( TestBeanPadding b : dump ) {
+            n++;
+            if ( n == 1 ) {
+               assertThat(b._data[0]).as("unexpected data after re-open").isEqualTo((byte)2);
+            }
+            if ( n == 2 ) {
+               assertThat(b._data[0]).as("unexpected data after re-open").isEqualTo((byte)3);
+            }
+         }
+         assertThat(n).as("unexpected size after re-open").isEqualTo(2);
+      }
    }
 
    @Test
@@ -257,6 +301,39 @@ public class DumpTest {
          dump.delete(0);
          dump.add(new Bean(1));
          dump.update(0, new Bean(2));
+      }
+   }
+
+   @Test
+   public void testUpdateWithPadding() throws Exception {
+      File dumpFile = new File("DumpTest.dmp");
+      try (Dump<TestBeanPadding> dump = new Dump<>(TestBeanPadding.class, dumpFile)) {
+         TestBeanPadding bean = new TestBeanPadding();
+         bean._data = new byte[986];
+         bean._data[0] = 1;
+         dump.add(bean);
+         dump.flush();
+         assertThat(dump.getDumpSize()).as("unexpected dump size before update").isEqualTo(1000);
+
+         for ( int i = 986; i < 1000; i++ ) {
+            for ( TestBeanPadding b : dump ) {
+               b._data = new byte[i];
+               b._data[0] = (byte)(i - 988);
+               dump.updateLast(b);
+               dump.flush();
+            }
+         }
+      }
+
+      try (Dump<TestBeanPadding> dump = new Dump<>(TestBeanPadding.class, dumpFile)) {
+         int n = 0;
+         for ( TestBeanPadding b : dump ) {
+            n++;
+            if ( n == 1 ) {
+               assertThat(b._data[0]).as("unexpected data after re-open").isEqualTo((byte)11);
+            }
+         }
+         assertThat(n).as("unexpected size after re-open").isEqualTo(1);
       }
    }
 

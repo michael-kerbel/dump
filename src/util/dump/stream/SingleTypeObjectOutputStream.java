@@ -72,6 +72,11 @@ public class SingleTypeObjectOutputStream<E extends Externalizable> extends Data
 
       ((Externalizable)obj).writeExternal(this);
 
+      if ( written > 2_000_000_000 ) {
+         /* we need to prevent an overflow of the written int field in between the writeExternal calls, otherwise the padding will break */
+         written = 0;
+      }
+
       if ( restore ) {
          out = _originalOut;
          _originalOut = null;
