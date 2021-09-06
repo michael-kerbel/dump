@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -40,14 +41,14 @@ import util.reflection.MethodFieldAccessor;
 import util.reflection.UnsafeFieldFieldAccessor;
 
 
-@SuppressWarnings({ "unchecked", "ForLoopReplaceableByForEach", "WeakerAccess" })
+@SuppressWarnings({ "unchecked", "ForLoopReplaceableByForEach", "WeakerAccess", "rawtypes" })
 class ExternalizationHelper {
 
    private static final long serialVersionUID = -1816997029156670474L;
 
    static boolean USE_UNSAFE_FIELD_ACCESSORS = true;
 
-   private static Map<Class, ClassConfig> CLASS_CONFIGS = new ConcurrentHashMap<>();
+   private static final Map<Class, ClassConfig> CLASS_CONFIGS = new ConcurrentHashMap<>();
 
    static Map<Class, Boolean>      CLASS_CHANGED_INCOMPATIBLY = new HashMap<>();
    static ThreadLocal<StreamCache> STREAM_CACHE               = ThreadLocal.withInitial(StreamCache::new);
@@ -93,6 +94,23 @@ class ExternalizationHelper {
       }
    }
 
+   static Map instantiateMap( Class c ) throws IllegalAccessException, InstantiationException {
+      try {
+         return (Map)c.newInstance();
+      }
+      catch ( InstantiationException | IllegalAccessException e ) {
+         LoggerFactory.getLogger(ExternalizationHelper.class).warn("Failed to instantiate externalized collection, will use HashSet/TreeSet as fallback.", e);
+         String name = c.getName();
+         if ( name.contains("Hash") ) {
+            return new HashMap();
+         }
+         if ( name.contains("Tree") ) {
+            return new TreeMap();
+         }
+         throw e;
+      }
+   }
+
    static byte[] readByteArray( DataInput in ) throws IOException {
       byte[] d = null;
       boolean isNotNull = in.readBoolean();
@@ -120,27 +138,35 @@ class ExternalizationHelper {
          }
       } else {
          String className = in.readUTF();
-         if ( "java.util.Collections$SingletonList".equals(className) ) {
+         switch ( className ) {
+         case "java.util.Collections$SingletonList":
             d = Collections.singletonList(instanceReader.get());
             return d;
-         } else if ( "java.util.Collections$SingletonSet".equals(className) ) {
+         case "java.util.Collections$SingletonSet":
             d = Collections.singleton(instanceReader.get());
             return d;
-         } else if ( "java.util.Collections$EmptyList".equals(className) ) {
+         case "java.util.Collections$EmptyList":
             d = Collections.emptyList();
-         } else if ( "java.util.Collections$EmptySet".equals(className) ) {
+            break;
+         case "java.util.Collections$EmptySet":
             d = Collections.emptySet();
-         } else if ( "java.util.Collections$UnmodifiableRandomAccessList".equals(className) || "java.util.Collections$UnmodifiableList".equals(className) ) {
+            break;
+         case "java.util.Collections$UnmodifiableRandomAccessList":
+         case "java.util.Collections$UnmodifiableList":
             d = new ArrayList<>();
             unmodifiableList = true;
-         } else if ( "java.util.Collections$UnmodifiableSet".equals(className) ) {
+            break;
+         case "java.util.Collections$UnmodifiableSet":
             d = new HashSet<>();
             unmodifiableSet = true;
-         } else if ( "java.util.Arrays$ArrayList".equals(className) ) {
+            break;
+         case "java.util.Arrays$ArrayList":
             d = new ArrayList<>();
-         } else {
+            break;
+         default:
             Class c = forName(className, config);
             d = instantiateCollection(c);
+            break;
          }
       }
 
@@ -299,6 +325,84 @@ class ExternalizationHelper {
             d[k] = in.readLong();
          }
       }
+      return d;
+   }
+
+   static void readMap( ObjectInput in, FieldAccessor f, Class defaultType, Class defaultGenericType0, Class defaultGenericType1,
+         ExternalizableBean thisInstance, ClassConfig config ) throws Exception {
+
+      Map d = null;
+      boolean isNotNull = in.readBoolean();
+      if ( isNotNull ) {
+         boolean isDefaultType = in.readBoolean();
+         int size = in.readInt();
+         Class[] lastNonDefaultKeyClass = new Class[1];
+         Class[] lastNonDefaultValueClass = new Class[1];
+
+         ThrowingSupplier<Object> keyReader = getReader(in, defaultGenericType0, config, lastNonDefaultKeyClass);
+         ThrowingSupplier<Object> valueReader = getReader(in, defaultGenericType1, config, lastNonDefaultValueClass);
+
+         d = readMapContainer(in, defaultType, isDefaultType, size, config, keyReader, valueReader);
+      }
+      if ( f != null ) {
+         f.set(thisInstance, d);
+      }
+   }
+
+   static Map readMapContainer( ObjectInput in, Class defaultType, boolean isDefaultType, int size, ClassConfig config, ThrowingSupplier<Object> keyReader,
+         ThrowingSupplier<Object> valueReader ) throws Exception {
+
+      boolean unmodifiableMap = false;
+      boolean immutableMap = false;
+      Map d;
+      if ( isDefaultType ) {
+         if ( defaultType.equals(HashMap.class) ) {
+            d = new HashMap(size);
+         } else if ( defaultType.equals(TreeMap.class) ) {
+            d = new TreeMap();
+         } else {
+            d = (Map)defaultType.newInstance();
+         }
+      } else {
+         String className = in.readUTF();
+         switch ( className ) {
+         case "java.util.concurrent.ConcurrentHashMap":
+            d = new ConcurrentHashMap<>(size);
+            break;
+         case "java.util.Collections$UnmodifiableMap":
+            unmodifiableMap = true;
+            d = new HashMap<>(size);
+            break;
+         case "java.util.ImmutableCollections$MapN":
+            immutableMap = true;
+            d = new HashMap<>(size);
+            break;
+         case "java.util.ImmutableCollections$Map1":
+            d = Map.of(keyReader.get(), valueReader.get());
+            return d;
+         case "java.util.SingletonMap":
+            d = Collections.singletonMap(keyReader.get(), valueReader.get());
+            return d;
+         case "java.util.Collections$EmptyMap":
+            d = Collections.emptyMap();
+            return d;
+         default:
+            Class c = forName(className, config);
+            d = instantiateMap(c);
+            break;
+         }
+      }
+
+      for ( int k = 0; k < size; k++ ) {
+         d.put(keyReader.get(), valueReader.get());
+      }
+
+      if ( unmodifiableMap ) {
+         d = Collections.unmodifiableMap(d);
+      } else if ( immutableMap ) {
+         d = Map.copyOf(d);
+      }
+
       return d;
    }
 
@@ -476,6 +580,40 @@ class ExternalizationHelper {
       }
    }
 
+   static void writeMap( ObjectOutput out, FieldAccessor f, Class defaultType, Class defaultGenericType0, Class defaultGenericType1,
+         ExternalizableBean thisInstance ) throws Exception {
+
+      Map<?, ?> d = (Map<?, ?>)f.get(thisInstance);
+      out.writeBoolean(d != null);
+      if ( d != null ) {
+         writeMapContainer(out, defaultType, d);
+
+         Class[] lastNonDefaultKeyClass = new Class[1];
+         Class[] lastNonDefaultValueClass = new Class[1];
+
+         ThrowingConsumer<Object, Exception> keyWriter = getWriter(out, defaultGenericType0, lastNonDefaultKeyClass);
+         ThrowingConsumer<Object, Exception> valueWriter = getWriter(out, defaultGenericType1, lastNonDefaultValueClass);
+
+         for ( Map.Entry<?, ?> entry : d.entrySet() ) {
+            keyWriter.accept(entry.getKey());
+            valueWriter.accept(entry.getValue());
+         }
+      }
+   }
+
+   static void writeMapContainer( ObjectOutput out, Class defaultType, Map d ) throws IOException {
+      Class mapClass = d.getClass();
+      boolean isDefaultType = mapClass.equals(defaultType);
+      out.writeBoolean(isDefaultType);
+      out.writeInt(d.size());
+      if ( !isDefaultType ) {
+         out.writeUTF(mapClass.getName());
+      }
+      if ( d instanceof TreeMap && ((TreeMap)d).comparator() != null ) {
+         throw new IllegalArgumentException("ExternalizedBean does not support TreeMaps with custom comparators!");
+      }
+   }
+
    static void writeSetOfExternalizables( ObjectOutput out, FieldAccessor f, Class defaultType, Class defaultGenericType, ExternalizableBean thisInstance )
          throws Exception {
       Set<Externalizable> d = (Set)f.get(thisInstance);
@@ -529,6 +667,34 @@ class ExternalizationHelper {
          out.writeLong(uuid.getLeastSignificantBits());
       }
    }
+
+   @Nonnull
+   private static ThrowingSupplier<Object> getReader( ObjectInput in, Class genericType, ClassConfig config, Class[] lastNonDefaultClass ) {
+      if ( Externalizable.class.isAssignableFrom(genericType) ) {
+         return () -> readExternalizable(in, genericType, lastNonDefaultClass, config);
+      } else if ( String.class == genericType ) {
+         return () -> readString(in);
+      } else {
+         throw new IllegalArgumentException("Map reader only supports String and Externalizable so far!");
+      }
+   }
+
+   private static ThrowingConsumer<Object, Exception> getWriter( ObjectOutput out, Class genericType, Class[] lastNonDefaultClass ) {
+      if ( Externalizable.class.isAssignableFrom(genericType) ) {
+         return instance -> writeExternalizable(out, (Externalizable)instance, genericType, lastNonDefaultClass);
+      } else if ( String.class == genericType ) {
+         return instance -> writeString(out, (String)instance);
+      } else {
+         throw new IllegalArgumentException("Map writer only supports String and Externalizable so far!");
+      }
+   }
+
+   @FunctionalInterface
+   public interface ThrowingConsumer<T, E extends Exception> {
+
+      void accept( T localDao ) throws E;
+   }
+
 
    @FunctionalInterface
    public interface ThrowingSupplier<T> {
@@ -591,10 +757,11 @@ class ExternalizationHelper {
       Instant(java.time.Instant.class, 50), //
       LocalTime(java.time.LocalTime.class, 51), //
       // TODO add Map (beware of Collections.*Map or Treemaps using custom Comparators!)
+      Map(java.util.Map.class, 52, true), //
       ;
 
-      private static Map<Class, FieldType> _classLookup = new HashMap<>(FieldType.values().length);
-      private static FieldType[]           _idLookup    = new FieldType[127];
+      private static final Map<Class, FieldType> _classLookup = new HashMap<>(FieldType.values().length);
+      private static final FieldType[]           _idLookup    = new FieldType[127];
 
       static {
          for ( FieldType ft : FieldType.values() ) {
@@ -1006,6 +1173,8 @@ class ExternalizationHelper {
             _defaultType = ArrayList.class;
          } else if ( ft == FieldType.SetOfExternalizables || ft == FieldType.SetOfStrings ) {
             _defaultType = HashSet.class;
+         } else if ( ft == FieldType.Map ) {
+            _defaultType = HashMap.class;
          }
 
          if ( annotation.defaultType() != System.class ) {
@@ -1038,7 +1207,7 @@ class ExternalizationHelper {
          if ( ft == FieldType.ListOfExternalizables || ft == FieldType.SetOfExternalizables ) {
             _defaultGenericType0 = fieldAccessor.getGenericTypes()[0];
             if ( annotation.defaultGenericType0() != System.class ) {
-               _defaultGenericType0 = annotation.defaultType();
+               _defaultGenericType0 = annotation.defaultGenericType0();
 
                try {
                   _defaultGenericType0.newInstance();
@@ -1053,6 +1222,47 @@ class ExternalizationHelper {
                   throw new RuntimeException(
                         "defaultGenericType0 for a field with a collection of Externalizables must be an Externalizable! Field " + fieldAccessor.getName()
                               + " with index " + _fieldIndex + " has defaultGenericType0 " + _defaultGenericType0);
+               }
+            }
+         }
+
+         if ( ft == FieldType.Map ) {
+            _defaultGenericType0 = fieldAccessor.getGenericTypes()[0];
+            if ( annotation.defaultGenericType0() != System.class ) {
+               _defaultGenericType0 = annotation.defaultGenericType0();
+
+               try {
+                  _defaultGenericType0.newInstance();
+               }
+               catch ( Exception argh ) {
+                  throw new RuntimeException(
+                        " Field " + fieldAccessor.getName() + " with index " + _fieldIndex + " has defaultGenericType0 " + _defaultGenericType0
+                              + " which has no public nullary constructor.");
+               }
+
+               if ( !Externalizable.class.isAssignableFrom(_defaultType) ) {
+                  throw new RuntimeException(
+                        "defaultGenericType0 for a field with a collection of Externalizables must be an Externalizable! Field " + fieldAccessor.getName()
+                              + " with index " + _fieldIndex + " has defaultGenericType0 " + _defaultGenericType0);
+               }
+            }
+            _defaultGenericType1 = fieldAccessor.getGenericTypes()[1];
+            if ( annotation.defaultGenericType1() != System.class ) {
+               _defaultGenericType1 = annotation.defaultGenericType1();
+
+               try {
+                  _defaultGenericType1.newInstance();
+               }
+               catch ( Exception argh ) {
+                  throw new RuntimeException(
+                        " Field " + fieldAccessor.getName() + " with index " + _fieldIndex + " has defaultGenericType1 " + _defaultGenericType1
+                              + " which has no public nullary constructor.");
+               }
+
+               if ( !Externalizable.class.isAssignableFrom(_defaultType) ) {
+                  throw new RuntimeException(
+                        "defaultGenericType1 for a field with a collection of Externalizables must be an Externalizable! Field " + fieldAccessor.getName()
+                              + " with index " + _fieldIndex + " has defaultGenericType1 " + _defaultGenericType1);
                }
             }
          }
