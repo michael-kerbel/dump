@@ -1,6 +1,6 @@
 package util.dump.stream;
 
-import static org.fest.assertions.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -62,12 +62,10 @@ public class AesCrypterTest {
       assertThat(s.contains(text)).as("data is not encrypted").isFalse();
    }
 
-
    public static class Bean implements ExternalizableBean {
 
       @externalize(1)
       String _text;
-
 
       public Bean() {}
 

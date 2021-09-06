@@ -1,6 +1,6 @@
 package util.dump;
 
-import static org.fest.assertions.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.fail;
 
 import java.io.ByteArrayInputStream;
@@ -12,7 +12,7 @@ import java.io.FileFilter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 
-import org.fest.util.Files;
+import org.assertj.core.util.Files;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -24,7 +24,6 @@ import util.dump.DumpTest.Bean;
 public class DumpUtilsTest {
 
    private static final int NUMBER_OF_INSTANCES = 10000;
-
 
    @Before
    @After

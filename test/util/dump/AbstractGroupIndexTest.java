@@ -1,8 +1,6 @@
 package util.dump;
 
-import static org.fest.assertions.Assertions.assertThat;
-import gnu.trove.set.TIntSet;
-import gnu.trove.set.hash.TIntHashSet;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.FileFilter;
@@ -13,9 +11,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Random;
 
-import junit.framework.Assert;
-
-import org.fest.util.Arrays;
+import org.assertj.core.util.Arrays;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -23,6 +19,9 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
+import gnu.trove.set.TIntSet;
+import gnu.trove.set.hash.TIntHashSet;
+import junit.framework.Assert;
 import util.reflection.FieldAccessor;
 import util.reflection.FieldFieldAccessor;
 import util.reflection.Reflection;
@@ -34,15 +33,11 @@ abstract public class AbstractGroupIndexTest {
    protected static final String DUMP_FILENAME = "DumpTest.dmp";
    protected static final int    READ_NUMBER   = 1000;
    protected static final int    BEAN_SIZE     = 10;
-
-   protected Random              _random;
-   protected final int           _dumpSize;
-   protected static File         _tmpdir;
-
+   protected static       File   _tmpdir;
 
    @Parameters
    public static Collection<Object[]> getDumpSizesToTestFor() {
-      List<Object[]> parameters = new ArrayList<Object[]>();
+      List<Object[]> parameters = new ArrayList<>();
       parameters.add(Arrays.array(10));
       parameters.add(Arrays.array(500));
       parameters.add(Arrays.array(10000));
@@ -58,6 +53,9 @@ abstract public class AbstractGroupIndexTest {
       }
       System.setProperty("java.io.tmpdir", _tmpdir.getAbsolutePath());
    }
+
+   protected       Random _random;
+   protected final int    _dumpSize;
 
    public AbstractGroupIndexTest( int dumpSize ) {
       _dumpSize = dumpSize;
@@ -103,14 +101,14 @@ abstract public class AbstractGroupIndexTest {
          sb.append('0');
       }
 
-      Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile);
+      Dump<Bean> dump = new Dump<>(Bean.class, dumpFile);
       for ( int i = 0; i < numGroups; i++ ) {
          dump.add(new Bean(i * 10, i + sb.toString()));
       }
 
       // reopen dump
       dump.close();
-      dump = new Dump<Bean>(Bean.class, dumpFile);
+      dump = new Dump<>(Bean.class, dumpFile);
 
       return dump;
    }
@@ -124,7 +122,7 @@ abstract public class AbstractGroupIndexTest {
       File dumpFile = new File(_tmpdir, DUMP_FILENAME);
 
       /* create dump and index */
-      Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile);
+      Dump<Bean> dump = new Dump<>(Bean.class, dumpFile);
       try {
          Field field = Reflection.getField(Bean.class, fieldName);
          FieldFieldAccessor fieldAccessor = new FieldFieldAccessor(field);
@@ -140,7 +138,7 @@ abstract public class AbstractGroupIndexTest {
 
          System.out.println("Closing and re-opening dump");
 
-         dump = new Dump<Bean>(Bean.class, dumpFile);
+         dump = new Dump<>(Bean.class, dumpFile);
          index = config.createIndex(dump, fieldAccessor);
 
          validateNumKeys(dump, index);
@@ -215,7 +213,7 @@ abstract public class AbstractGroupIndexTest {
 
             System.out.println("Closing and re-opening dump");
 
-            dump = new Dump<Bean>(Bean.class, dumpFile);
+            dump = new Dump<>(Bean.class, dumpFile);
             index = config.createIndex(dump, fieldAccessor);
 
             testLookupAfterUpdates(config, field, index);
@@ -235,7 +233,7 @@ abstract public class AbstractGroupIndexTest {
             Assert.assertTrue("Failed to delete meta file " + df, df.delete());
          }
          /* re-open, enforcing the index to be re-created */
-         dump = new Dump<Bean>(Bean.class, dumpFile);
+         dump = new Dump<>(Bean.class, dumpFile);
          index = config.createIndex(dump, fieldAccessor);
 
          /* after having re-created the index, repeat last test */
@@ -323,7 +321,7 @@ abstract public class AbstractGroupIndexTest {
       File dumpFile = new File(_tmpdir, DUMP_FILENAME);
 
       /* create dump and index */
-      Dump<Bean> dump = new Dump<Bean>(Bean.class, dumpFile);
+      Dump<Bean> dump = new Dump<>(Bean.class, dumpFile);
       Field field = Reflection.getField(Bean.class, fieldName);
 
       fillDump(dump);
@@ -351,7 +349,6 @@ abstract public class AbstractGroupIndexTest {
       }
    }
 
-
    public static class Bean implements ExternalizableBean {
 
       @externalize(1)
@@ -366,7 +363,6 @@ abstract public class AbstractGroupIndexTest {
       ExternalizableId _groupExternalizable;
       @externalize(10)
       String           _data;
-
 
       public Bean() {
          // for Externalization
@@ -434,11 +430,11 @@ abstract public class AbstractGroupIndexTest {
       }
    }
 
+
    public static class ExternalizableId implements ExternalizableBean {
 
       @externalize(1)
       long _id;
-
 
       public ExternalizableId() {
          // for Externalization
@@ -474,6 +470,7 @@ abstract public class AbstractGroupIndexTest {
          return result;
       }
    }
+
 
    protected static abstract class TestConfiguration {
 

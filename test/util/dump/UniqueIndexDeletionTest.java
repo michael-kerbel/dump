@@ -1,6 +1,6 @@
 package util.dump;
 
-import static org.fest.assertions.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -16,8 +16,7 @@ import org.junit.Test;
 public class UniqueIndexDeletionTest {
 
    private static final String DUMP_FILENAME = "UniqueIndexDeletionTest.dmp";
-   private static File         _tmpdir;
-
+   private static       File   _tmpdir;
 
    @BeforeClass
    public static void setUpTmpdir() throws IOException {

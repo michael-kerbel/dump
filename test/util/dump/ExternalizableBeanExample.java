@@ -1,6 +1,6 @@
 package util.dump;
 
-import static org.fest.assertions.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -17,36 +17,6 @@ import org.junit.Test;
  * An example beside the "real" Test-Case to demonstrate the usage and benefits.
  */
 public class ExternalizableBeanExample {
-
-   public static class BeanV1 implements ExternalizableBean {
-
-      @externalize(1)
-      public String name;
-
-      @externalize(2)
-      public int    value;
-
-      @externalize(3)
-      public int    oldValue;
-   }
-
-   public static class BeanV2 implements ExternalizableBean {
-
-      @externalize(1)
-      public String name;
-
-      @externalize(2)
-      public int    value;
-
-      // not available anymore
-      //@externalize(3)
-      //public int oldValue;
-
-      // new in version 2, but needs new index=4
-      @externalize(4)
-      public int    newValue;
-   }
-
 
    @Test
    public void testWriteRead() throws IOException, ClassNotFoundException {
@@ -74,6 +44,37 @@ public class ExternalizableBeanExample {
       assertThat(version1.value).isEqualTo(version2.value);
       assertThat(version1.oldValue).isEqualTo(99); // not available to version2
       assertThat(version2.newValue).isEqualTo(0);  // not present in buffer
+   }
+
+
+   public static class BeanV1 implements ExternalizableBean {
+
+      @externalize(1)
+      public String name;
+
+      @externalize(2)
+      public int value;
+
+      @externalize(3)
+      public int oldValue;
+   }
+
+
+   public static class BeanV2 implements ExternalizableBean {
+
+      @externalize(1)
+      public String name;
+
+      @externalize(2)
+      public int value;
+
+      // not available anymore
+      //@externalize(3)
+      //public int oldValue;
+
+      // new in version 2, but needs new index=4
+      @externalize(4)
+      public int newValue;
    }
 
 }

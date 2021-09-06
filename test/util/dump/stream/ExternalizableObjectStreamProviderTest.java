@@ -1,6 +1,6 @@
 package util.dump.stream;
 
-import static org.fest.assertions.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -63,7 +63,7 @@ public class ExternalizableObjectStreamProviderTest {
 
       List<TestExternalizableBean> testExternalizableBeans = createTestExternalizableBean(1);
       SingleTypeObjectStreamProvider<TestExternalizableBean> stProvider = new SingleTypeObjectStreamProvider<>(TestExternalizableBean.class,
-         Compression.GZipLevel0);
+            Compression.GZipLevel0);
       test(stProvider, testExternalizableBeans);
       stProvider = new SingleTypeObjectStreamProvider<>(TestExternalizableBean.class, Compression.GZipLevel1);
       test(stProvider, testExternalizableBeans);
@@ -150,8 +150,9 @@ public class ExternalizableObjectStreamProviderTest {
    }
 
    protected void test( ObjectStreamProvider provider, List testBeans ) throws IOException, ClassNotFoundException {
-      for ( Object bean : testBeans )
+      for ( Object bean : testBeans ) {
          testInstance(provider, bean);
+      }
    }
 
    protected void testInstance( ObjectStreamProvider provider, Object bean ) throws IOException, ClassNotFoundException {
@@ -167,7 +168,6 @@ public class ExternalizableObjectStreamProviderTest {
       assertThat(deserialized).isEqualTo(bean);
    }
 
-
    public static class TestBean implements Externalizable {
 
       Date     _date;
@@ -179,7 +179,6 @@ public class ExternalizableObjectStreamProviderTest {
       String   _s;
       TestBean _b;
       Object   _o;
-
 
       @Override
       public boolean equals( Object obj ) {
@@ -288,16 +287,17 @@ public class ExternalizableObjectStreamProviderTest {
       }
    }
 
+
    public static class TestBeanNonExternalizable implements Serializable {
 
       double d = Math.random();
-
 
       @Override
       public boolean equals( Object obj ) {
          return ((TestBeanNonExternalizable)obj).d == d;
       }
    }
+
 
    public static class TestExternalizableBean implements ExternalizableBean {
 
@@ -313,7 +313,6 @@ public class ExternalizableObjectStreamProviderTest {
       long   _l;
       @externalize(6)
       String _s;
-
 
       public TestExternalizableBean() {}
 
