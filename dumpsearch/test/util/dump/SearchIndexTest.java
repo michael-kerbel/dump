@@ -1,6 +1,6 @@
 package util.dump;
 
-import static org.fest.assertions.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 import static util.dump.SearchIndex.SortBuilder.Direction.ASC;
 import static util.dump.SearchIndex.SortBuilder.Direction.DESC;
 import static util.dump.SearchIndex.sort;

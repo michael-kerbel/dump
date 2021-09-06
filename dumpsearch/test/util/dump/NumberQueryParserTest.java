@@ -1,6 +1,6 @@
 package util.dump;
 
-import static org.fest.assertions.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -72,7 +72,6 @@ public class NumberQueryParserTest {
       return StreamSupport.stream(result.spliterator(), false).collect(Collectors.toList());
    }
 
-
    public static class Bean implements ExternalizableBean {
 
       @externalize(1)
@@ -83,7 +82,6 @@ public class NumberQueryParserTest {
       private long   _longField;
       @externalize(4)
       private double _doubleField;
-
 
       public Bean() {}
 
