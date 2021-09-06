@@ -1,6 +1,6 @@
 package util.dump;
 
-import static org.fest.assertions.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 
@@ -42,7 +42,7 @@ public class InfiniteGroupIndexTest extends AbstractGroupIndexTest {
       int numKeys = 5;
       Dump<Bean> dump = prepareDump(numKeys);
       try {
-         InfiniteGroupIndex<Bean> intIndex = new InfiniteGroupIndex<Bean>(dump, "_groupExternalizable");
+         InfiniteGroupIndex<Bean> intIndex = new InfiniteGroupIndex<>(dump, "_groupExternalizable");
          assertThat(intIndex.getNumKeys()).isEqualTo(numKeys);
 
          assertThat(intIndex.lookup(new ExternalizableId(1)).iterator().hasNext()).isTrue();
@@ -51,8 +51,7 @@ public class InfiniteGroupIndexTest extends AbstractGroupIndexTest {
 
          assertThat(intIndex.getNumKeys()).isEqualTo(numKeys);
 
-         for ( @SuppressWarnings("unused")
-         Bean bean : intIndex.lookup(new ExternalizableId(1)) ) {
+         for ( @SuppressWarnings("unused") Bean bean : intIndex.lookup(new ExternalizableId(1)) ) {
             dump.deleteLast();
          }
 
@@ -68,7 +67,7 @@ public class InfiniteGroupIndexTest extends AbstractGroupIndexTest {
       int numKeys = 5;
       Dump<Bean> dump = prepareDump(numKeys);
       try {
-         InfiniteGroupIndex<Bean> intIndex = new InfiniteGroupIndex<Bean>(dump, "_groupInt");
+         InfiniteGroupIndex<Bean> intIndex = new InfiniteGroupIndex<>(dump, "_groupInt");
          assertThat(intIndex.getNumKeys()).isEqualTo(numKeys);
 
          assertThat(intIndex.lookup(1).iterator().hasNext()).isTrue();
@@ -77,8 +76,7 @@ public class InfiniteGroupIndexTest extends AbstractGroupIndexTest {
 
          assertThat(intIndex.getNumKeys()).isEqualTo(numKeys);
 
-         for ( @SuppressWarnings("unused")
-         Bean bean : intIndex.lookup(1) ) {
+         for ( @SuppressWarnings("unused") Bean bean : intIndex.lookup(1) ) {
             dump.deleteLast();
          }
 
@@ -94,7 +92,7 @@ public class InfiniteGroupIndexTest extends AbstractGroupIndexTest {
       int numKeys = 5;
       Dump<Bean> dump = prepareDump(numKeys);
       try {
-         InfiniteGroupIndex<Bean> intIndex = new InfiniteGroupIndex<Bean>(dump, "_groupLong");
+         InfiniteGroupIndex<Bean> intIndex = new InfiniteGroupIndex<>(dump, "_groupLong");
          assertThat(intIndex.getNumKeys()).isEqualTo(numKeys);
 
          assertThat(intIndex.lookup(1l).iterator().hasNext()).isTrue();
@@ -103,8 +101,7 @@ public class InfiniteGroupIndexTest extends AbstractGroupIndexTest {
 
          assertThat(intIndex.getNumKeys()).isEqualTo(numKeys);
 
-         for ( @SuppressWarnings("unused")
-         Bean bean : intIndex.lookup(1l) ) {
+         for ( @SuppressWarnings("unused") Bean bean : intIndex.lookup(1l) ) {
             dump.deleteLast();
          }
 
@@ -120,7 +117,7 @@ public class InfiniteGroupIndexTest extends AbstractGroupIndexTest {
       int numKeys = 5;
       Dump<Bean> dump = prepareDump(numKeys);
       try {
-         InfiniteGroupIndex<Bean> intIndex = new InfiniteGroupIndex<Bean>(dump, "_groupString");
+         InfiniteGroupIndex<Bean> intIndex = new InfiniteGroupIndex<>(dump, "_groupString");
          assertThat(intIndex.getNumKeys()).isEqualTo(numKeys);
 
          assertThat(intIndex.lookup("+1").iterator().hasNext()).isTrue();
@@ -129,8 +126,7 @@ public class InfiniteGroupIndexTest extends AbstractGroupIndexTest {
 
          assertThat(intIndex.getNumKeys()).isEqualTo(numKeys);
 
-         for ( @SuppressWarnings("unused")
-         Bean bean : intIndex.lookup("+1") ) {
+         for ( @SuppressWarnings("unused") Bean bean : intIndex.lookup("+1") ) {
             dump.deleteLast();
          }
 
@@ -233,12 +229,12 @@ public class InfiniteGroupIndexTest extends AbstractGroupIndexTest {
       }
       int numberInDump = 0;
       for ( Bean bean : dump ) {
-         if ( bean._groupLong >= lowerKey && bean._groupLong < upperKey )
+         if ( bean._groupLong >= lowerKey && bean._groupLong < upperKey ) {
             numberInDump++;
+         }
       }
       assertThat(numberFoundByIndex).as("wrong number of elements found").isEqualTo(numberInDump);
    }
-
 
    public abstract static class InfiniteGroupIndexConfig extends TestConfiguration {
 
@@ -247,6 +243,7 @@ public class InfiniteGroupIndexTest extends AbstractGroupIndexTest {
          return new InfiniteGroupIndex<Bean>(dump, fieldAccessor, 2500);
       }
    }
+
 
    public abstract static class InfiniteGroupIndexWithCacheConfig extends TestConfiguration {
 

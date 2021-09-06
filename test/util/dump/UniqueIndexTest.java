@@ -1,6 +1,6 @@
 package util.dump;
 
-import static org.fest.assertions.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.FileFilter;
@@ -11,7 +11,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Random;
 
-import org.fest.util.Arrays;
+import org.assertj.core.util.Arrays;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -33,8 +33,7 @@ public class UniqueIndexTest {
    private static final String DUMP_FILENAME = "DumpTest.dmp";
    private static final int    READ_NUMBER   = 1000;
    private static final int    BEAN_SIZE     = 10;
-   private static File         _tmpdir;
-
+   private static       File   _tmpdir;
 
    @Parameters
    public static Collection<Object[]> getDumpSizesToTestFor() {
@@ -55,11 +54,9 @@ public class UniqueIndexTest {
       System.setProperty("java.io.tmpdir", _tmpdir.getAbsolutePath());
    }
 
-
    private Random _random;
 
    private final int _dumpSize;
-
 
    public UniqueIndexTest( Integer dumpSize ) {
       _dumpSize = dumpSize;
@@ -199,7 +196,7 @@ public class UniqueIndexTest {
 
          System.out.println("Closing and re-opening dump, deleting index");
          Assert.assertTrue("Failed to delete index",
-            new File(_tmpdir, DUMP_FILENAME + "._idInt.lookup").delete() && !new File(_tmpdir, DUMP_FILENAME + "._idInt.lookup").exists());
+               new File(_tmpdir, DUMP_FILENAME + "._idInt.lookup").delete() && !new File(_tmpdir, DUMP_FILENAME + "._idInt.lookup").exists());
 
          dump = new Dump<>(Bean.class, dumpFile);
          index = new UniqueIndex<>(dump, new FieldFieldAccessor(field));
@@ -468,7 +465,6 @@ public class UniqueIndexTest {
       assertThat(numKeys).isEqualTo(keys.size());
    }
 
-
    public static class Bean implements ExternalizableBean {
 
       @externalize(1)
@@ -483,7 +479,6 @@ public class UniqueIndexTest {
       ExternalizableId _idExternalizable;
       @externalize(10)
       String           _data;
-
 
       public Bean() {
          // for Externalization
@@ -553,11 +548,11 @@ public class UniqueIndexTest {
       }
    }
 
+
    public static class ExternalizableId implements ExternalizableBean {
 
       @externalize(1)
       long _id;
-
 
       public ExternalizableId() {
          // for Externalization
@@ -593,6 +588,7 @@ public class UniqueIndexTest {
          return result;
       }
    }
+
 
    protected static abstract class TestConfiguration {
 

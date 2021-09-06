@@ -1,11 +1,11 @@
 package util.dump;
 
-import static org.fest.assertions.Assertions.assertThat;
-import gnu.trove.set.TLongSet;
-import gnu.trove.set.hash.TLongHashSet;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.Test;
 
+import gnu.trove.set.TLongSet;
+import gnu.trove.set.hash.TLongHashSet;
 import util.dump.GroupIndex.Positions;
 import util.reflection.FieldAccessor;
 
@@ -32,12 +32,11 @@ public class GroupIndexTest extends AbstractGroupIndexTest {
       final int NUM_EXPECTED_GROUPS = 5;
       Dump<Bean> dump = prepareDump(NUM_EXPECTED_GROUPS);
       try {
-         GroupIndex<Bean> intIndex = new GroupIndex<Bean>(dump, "_groupInt");
+         GroupIndex<Bean> intIndex = new GroupIndex<>(dump, "_groupInt");
          assertThat(intIndex.getNumKeys()).isEqualTo(NUM_EXPECTED_GROUPS);
 
          int numDeletions = 0;
-         for ( @SuppressWarnings("unused")
-         Bean bean : intIndex.lookup(1) ) {
+         for ( @SuppressWarnings("unused") Bean bean : intIndex.lookup(1) ) {
             dump.deleteLast();
             numDeletions++;
          }
@@ -119,7 +118,6 @@ public class GroupIndexTest extends AbstractGroupIndexTest {
          }
       });
    }
-
 
    public abstract static class GroupIndexTestConfig extends TestConfiguration {
 
