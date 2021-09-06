@@ -9,6 +9,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+import java.security.AccessControlException;
+import java.util.Collection;
 
 import gnu.trove.TLongCollection;
 import gnu.trove.iterator.TLongIterator;
@@ -120,6 +122,36 @@ public class UniqueIndex<E> extends DumpIndex<E> {
                   "The type of the used key class of this index is " + _fieldAccessor.getType() + ". Please use the appropriate contains(.) method.");
          }
          return _lookupObject.containsKey(key) && !_dump._deletedPositions.contains(_lookupObject.get(key));
+      }
+   }
+
+   /**
+    * Deletes all elements from the index in a batch operation. This is way more efficient than deleting them individually, because no IO flush is needed
+    * in between. <br>
+    *
+    * <b>BEWARE</b>: You need to provide elements with the same content as in the dump, otherwise the indexes of the dump might become corrupted!
+    * The pattern would be:
+    * <pre>{@code
+    *    List<E> elementsToDelete = idsToDelete.stream()
+    *                .map(id -> index.lookup(id))
+    *                .collect(Collectors.toList());
+    *    index.deleteFromDump(elementsToDelete);
+    * }
+    * @param elements The elements to delete with the same content as in the dump
+    */
+   public void deleteFromDump( Collection<E> elements ) {
+      if ( !_dump._mode.contains(Dump.DumpAccessFlag.delete) ) {
+         throw new AccessControlException("Delete operation not allowed with current modes.");
+      }
+
+      for ( E e : elements ) {
+         long position = getPosition(e);
+         if ( position >= 0 ) {
+            synchronized ( _dump ) {
+               _dump.assertOpen();
+               _dump.delete(position, e);
+            }
+         }
       }
    }
 
@@ -345,7 +377,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
          boolean mayEOF = true;
          if ( _fieldIsInt ) {
             int size = (int)(getLookupFile().length() / (4 + 8));
-            size = Math.max(10000, size);
+            size = Math.max(10000, size + 1000);
             _lookupInt = new TIntLongHashMap(size);
             DataInputStream in = null;
             try {
@@ -392,7 +424,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
             }
          } else if ( _fieldIsLong ) {
             int size = (int)(getLookupFile().length() / (8 + 8));
-            size = Math.max(10000, size);
+            size = Math.max(10000, size + 1000);
             _lookupLong = new TLongLongHashMap(size);
             DataInputStream in = null;
             try {
@@ -439,7 +471,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
             }
          } else if ( _fieldIsString ) {
             int size = (int)(getLookupFile().length() / (10 + 8)); // let's assume an average length of the String keys of 10 bytes
-            size = Math.max(10000, size);
+            size = Math.max(10000, size + 1000);
             _lookupObject = new TObjectLongHashMap(size);
             DataInputStream in = null;
             try {
@@ -486,7 +518,7 @@ public class UniqueIndex<E> extends DumpIndex<E> {
             }
          } else {
             int size = (int)(getLookupFile().length() / (20 + 8)); // let's assume an average length of the keys of 20 bytes
-            size = Math.max(10000, size);
+            size = Math.max(10000, size + 1000);
             _lookupObject = new TObjectLongHashMap(size);
             ObjectInput in = null;
             try {
