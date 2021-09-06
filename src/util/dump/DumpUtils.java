@@ -233,11 +233,19 @@ public class DumpUtils {
    /** This is an extension of {@link java.io.DataInputStream.readUTF()} which allows more than 65535 chars.
     * Use with writeUtf() from this class. */
    public static String readUTF( DataInput in ) throws IOException {
+      int utflen = readUTFLength(in);
+      return readUTFString(in, utflen);
+   }
+
+   public static int readUTFLength( DataInput in ) throws IOException {
       int utflen = in.readUnsignedShort();
       if ( utflen == 0xffff ) {
          utflen = in.readInt();
       }
+      return utflen;
+   }
 
+   public static String readUTFString( DataInput in, int utflen ) throws IOException {
       byte[] bytearr = _readUTFReusableByteArray.get();
       if ( bytearr.length < utflen ) {
          bytearr = new byte[utflen * 2];

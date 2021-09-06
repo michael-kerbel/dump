@@ -16,6 +16,7 @@ import static util.dump.ExternalizationHelper.readExternalizableArray;
 import static util.dump.ExternalizationHelper.readFloatArray;
 import static util.dump.ExternalizationHelper.readIntArray;
 import static util.dump.ExternalizationHelper.readLongArray;
+import static util.dump.ExternalizationHelper.readMap;
 import static util.dump.ExternalizationHelper.readString;
 import static util.dump.ExternalizationHelper.readStringArray;
 import static util.dump.ExternalizationHelper.readUUID;
@@ -29,6 +30,7 @@ import static util.dump.ExternalizationHelper.writeIntArray;
 import static util.dump.ExternalizationHelper.writeListOfExternalizables;
 import static util.dump.ExternalizationHelper.writeListOfStrings;
 import static util.dump.ExternalizationHelper.writeLongArray;
+import static util.dump.ExternalizationHelper.writeMap;
 import static util.dump.ExternalizationHelper.writeSetOfExternalizables;
 import static util.dump.ExternalizationHelper.writeSetOfStrings;
 import static util.dump.ExternalizationHelper.writeString;
@@ -102,7 +104,7 @@ import util.reflection.FieldAccessor;
  * All types are allowed for your members, but if your member is not included in the following list of supported
  * types, serialization falls back to normal java.io.Serializable mechanisms by using {@link ObjectOutput#writeObject(Object)},
  * which is slow and breaks downward and upward compatibility.
- * These are the supported types (see also {@link util.dump.ExternalizationHelper.FieldType}):
+ * These are the supported types (see also {@link FieldType}):
  * <ul><li>
  * primitive fields (<code>int</code>, <code>float</code>, ...) and single-dimensional arrays containing primitives
  * </li><li>
@@ -118,6 +120,8 @@ import util.reflection.FieldAccessor;
  * <code>Set&lt;Externalizable&gt;</code>
  * </li><li>
  * generic Lists or Sets of <code>String</code> type, i.e. <code>List&lt;String&gt;</code> or <code>Set&lt;String&gt;</code>
+ * </li><li>
+ * generic Maps of <code>String</code> or any <code>Externalizable</code> type, i.e. <code>Map&lt;String, Externalizable&gt;</code> or <code>Map&lt;Externalizable, String&gt;</code>
  * </li>
  * </ul>
  * Currently unsupported (i.e. slow and not compatible with {@link util.dump.stream.SingleTypeObjectStreamProvider})
@@ -170,7 +174,7 @@ public interface ExternalizableBean extends Externalizable {
       try {
          ClassConfig config = getConfig(getClass());
 
-         int fieldNumberToRead = in.readByte() & 0xff;
+         int fieldNumberToRead = readExternalFieldNumber(in);
 
          FieldAccessor[] fieldAccessors = config._fieldAccessors;
          byte[] fieldIndexes = config._fieldIndexes;
@@ -763,6 +767,10 @@ public interface ExternalizableBean extends Externalizable {
                }
                break;
             }
+            case Map: {
+               readMap(in, f, defaultTypes[i], config._defaultGenericTypes0[i], config._defaultGenericTypes1[i], this, config);
+               break;
+            }
             case Padding: {
                int bytesToRead = in.readShort();
                in.read(new byte[bytesToRead]);
@@ -789,6 +797,13 @@ public interface ExternalizableBean extends Externalizable {
       catch ( Throwable e ) {
          throw new RuntimeException("Failed to read externalized instance. Maybe the field order was changed? class " + getClass(), e);
       }
+   }
+
+   /**
+    * Method extracted, so that subclasses can adjust parsing (currently used for migrations only)
+    */
+   default int readExternalFieldNumber( ObjectInput in ) throws IOException {
+      return in.readByte() & 0xff;
    }
 
    @Override
@@ -1181,6 +1196,10 @@ public interface ExternalizableBean extends Externalizable {
                      DumpUtils.writeUTF(e.name(), out); // not writeString(), since the value cannot be null
                   }
                }
+               break;
+            }
+            case Map: {
+               writeMap(out, f, defaultType, _config._defaultGenericTypes0[i], _config._defaultGenericTypes1[i], this);
                break;
             }
             case Padding: {
