@@ -444,32 +444,7 @@ public class Dump<E> implements DumpInput<E> {
             throw new RuntimeException("Failed to delete item on position " + pos + ". There was no instance on that position - maybe it was already deleted?");
          }
 
-         _deletedPositions.add(pos);
-         if ( _cache != null ) {
-            _cache.remove(pos);
-         }
-
-         try {
-            // lazy open/create deletions file
-            if ( _deletionsOutput == null ) {
-               FileOutputStream fileOutputStream = new FileOutputStream(_deletionsFile, true);
-               _deletionsOutput = new DataOutputStream(new BufferedOutputStream(fileOutputStream, DumpWriter.DEFAULT_BUFFER_SIZE));
-               _deletionsOutputChannel = fileOutputStream.getChannel();
-            }
-            _deletionsOutput.writeLong(pos);
-         }
-         catch ( IOException argh ) {
-            throw new RuntimeException("Failed to add deletion to " + _deletionsFile, argh);
-         }
-         finally {
-            _dirty.set(true);
-         }
-
-         _sequence++;
-
-         for ( DumpIndex<E> index : _indexes ) {
-            index.delete(e, pos);
-         }
+         delete(pos, e);
 
          return e;
       }
@@ -986,6 +961,35 @@ public class Dump<E> implements DumpInput<E> {
 
       assertOpen();
       _indexes.add(index);
+   }
+
+   void delete( long pos, E e ) {
+      _deletedPositions.add(pos);
+      if ( _cache != null ) {
+         _cache.remove(pos);
+      }
+
+      try {
+         // lazy open/create deletions file
+         if ( _deletionsOutput == null ) {
+            FileOutputStream fileOutputStream = new FileOutputStream(_deletionsFile, true);
+            _deletionsOutput = new DataOutputStream(new BufferedOutputStream(fileOutputStream, DumpWriter.DEFAULT_BUFFER_SIZE));
+            _deletionsOutputChannel = fileOutputStream.getChannel();
+         }
+         _deletionsOutput.writeLong(pos);
+      }
+      catch ( IOException argh ) {
+         throw new RuntimeException("Failed to add deletion to " + _deletionsFile, argh);
+      }
+      finally {
+         _dirty.set(true);
+      }
+
+      _sequence++;
+
+      for ( DumpIndex<E> index : _indexes ) {
+         index.delete(e, pos);
+      }
    }
 
    void initMeta() throws IOException {
