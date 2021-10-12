@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -253,6 +254,23 @@ class ExternalizationHelper {
       return d;
    }
 
+   static Enum<?> readEnum( ObjectInput in, Class<? extends Enum> enumClass ) throws IOException {
+      Enum e = null;
+      boolean isNotNull = in.readBoolean();
+      if ( isNotNull ) {
+         String enumName = DumpUtils.readUTF(in);
+         if ( enumClass != null ) {
+            try {
+               e = Enum.valueOf(enumClass, enumName);
+            }
+            catch ( IllegalArgumentException unknownEnumConstantException ) {
+               // an enum constant was added or removed and our class is not compatible - as always in this class, we silently ignore the unknown value
+            }
+         }
+      }
+      return e;
+   }
+
    static Externalizable readExternalizable( ObjectInput in, Class<? extends Externalizable> defaultType, Class[] lastNonDefaultClass, ClassConfig config )
          throws Exception {
       Externalizable instance = null;
@@ -342,7 +360,7 @@ class ExternalizationHelper {
          ThrowingSupplier<Object> keyReader = getReader(in, defaultGenericType0, config, lastNonDefaultKeyClass);
          ThrowingSupplier<Object> valueReader = getReader(in, defaultGenericType1, config, lastNonDefaultValueClass);
 
-         d = readMapContainer(in, defaultType, isDefaultType, size, config, keyReader, valueReader);
+         d = readMapContainer(in, defaultType, isDefaultType, size, config, keyReader, valueReader, defaultGenericType0);
       }
       if ( f != null ) {
          f.set(thisInstance, d);
@@ -350,7 +368,7 @@ class ExternalizationHelper {
    }
 
    static Map readMapContainer( ObjectInput in, Class defaultType, boolean isDefaultType, int size, ClassConfig config, ThrowingSupplier<Object> keyReader,
-         ThrowingSupplier<Object> valueReader ) throws Exception {
+         ThrowingSupplier<Object> valueReader, Class keyType ) throws Exception {
 
       boolean unmodifiableMap = false;
       boolean immutableMap = false;
@@ -386,6 +404,9 @@ class ExternalizationHelper {
          case "java.util.Collections$EmptyMap":
             d = Collections.emptyMap();
             return d;
+         case "java.util.EnumMap":
+            d = new EnumMap(keyType);
+            break;
          default:
             Class c = forName(className, config);
             d = instantiateMap(c);
@@ -485,6 +506,13 @@ class ExternalizationHelper {
          for ( int j = 0, llength = d.length; j < llength; j++ ) {
             out.writeDouble(d[j]);
          }
+      }
+   }
+
+   static void writeEnum( ObjectOutput out, Enum<?> e ) throws IOException {
+      out.writeBoolean(e != null);
+      if ( e != null ) {
+         DumpUtils.writeUTF(e.name(), out);
       }
    }
 
@@ -674,6 +702,8 @@ class ExternalizationHelper {
          return () -> readExternalizable(in, genericType, lastNonDefaultClass, config);
       } else if ( String.class == genericType ) {
          return () -> readString(in);
+      } else if ( Enum.class.isAssignableFrom(genericType) ) {
+         return () -> readEnum(in, genericType);
       } else {
          throw new IllegalArgumentException("Map reader only supports String and Externalizable so far!");
       }
@@ -684,6 +714,8 @@ class ExternalizationHelper {
          return instance -> writeExternalizable(out, (Externalizable)instance, genericType, lastNonDefaultClass);
       } else if ( String.class == genericType ) {
          return instance -> writeString(out, (String)instance);
+      } else if ( Enum.class.isAssignableFrom(genericType) ) {
+         return instance -> writeEnum(out, (Enum<?>)instance);
       } else {
          throw new IllegalArgumentException("Map writer only supports String and Externalizable so far!");
       }
@@ -756,7 +788,6 @@ class ExternalizationHelper {
       LocalDate(java.time.LocalDate.class, 49), //
       Instant(java.time.Instant.class, 50), //
       LocalTime(java.time.LocalTime.class, 51), //
-      // TODO add Map (beware of Collections.*Map or Treemaps using custom Comparators!)
       Map(java.util.Map.class, 52, true), //
       ;
 
@@ -764,6 +795,8 @@ class ExternalizationHelper {
       private static final FieldType[]           _idLookup    = new FieldType[127];
 
       static {
+         _classLookup.put(EnumMap.class, Map);
+
          for ( FieldType ft : FieldType.values() ) {
             if ( _classLookup.get(ft._class) != null ) {
                throw new Error("Implementation mistake: FieldType._class must be unique! " + ft._class);
