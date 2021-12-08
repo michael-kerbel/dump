@@ -7,6 +7,7 @@ import java.io.Externalizable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectOutput;
+import java.util.Collections;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
@@ -20,7 +21,7 @@ import com.github.luben.zstd.ZstdDictTrainer;
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
-import util.collections.ConcurrentLRUCache;
+import util.collections.LRUCache;
 import util.io.IOUtils;
 
 
@@ -38,13 +39,29 @@ import util.io.IOUtils;
  * Idea: put the compression calculations into a second thread, to increase performance.  
  */
 public enum Compression implements ByteArrayPacker {
-   GZipLevel0, GZipLevel1, GZipLevel2, GZipLevel3, GZipLevel4, GZipLevel5, GZipLevel6, GZipLevel7, GZipLevel8, GZipLevel9, Snappy, LZ4, Zstd1, Zstd5, Zstd10, Zstd15, Zstd22;
+   GZipLevel0,
+   GZipLevel1,
+   GZipLevel2,
+   GZipLevel3,
+   GZipLevel4,
+   GZipLevel5,
+   GZipLevel6,
+   GZipLevel7,
+   GZipLevel8,
+   GZipLevel9,
+   Snappy,
+   LZ4,
+   Zstd1,
+   Zstd5,
+   Zstd10,
+   Zstd15,
+   Zstd22;
 
-   private static LZ4Compressor _lz4Compressor = null;
-   private static LZ4FastDecompressor _lz4Decompressor = null;
+   private static volatile LZ4Compressor       _lz4Compressor   = null;
+   private static          LZ4FastDecompressor _lz4Decompressor = null;
 
-   private Map<byte[], ZstdDictCompress> _zstdDictCompress = new ConcurrentLRUCache<>(4, 3);
-   private Map<byte[], ZstdDictDecompress> _zstdDictDecompress = new ConcurrentLRUCache<>(4, 3);
+   private final Map<byte[], ZstdDictCompress>   _zstdDictCompress   = Collections.synchronizedMap(new LRUCache<>(4));
+   private final Map<byte[], ZstdDictDecompress> _zstdDictDecompress = Collections.synchronizedMap(new LRUCache<>(4));
 
    @Override
    public <E extends Externalizable> byte[] initDictionary( Iterable<E> dictInputProvider, ObjectStreamProvider objectStreamProvider ) {
