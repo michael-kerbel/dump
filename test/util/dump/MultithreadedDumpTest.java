@@ -12,8 +12,7 @@ import org.junit.Test;
 import gnu.trove.set.TIntSet;
 import gnu.trove.set.hash.TIntHashSet;
 import junit.framework.Assert;
-import util.concurrent.ExecutorUtils;
-import util.time.TimeUtils;
+import util.dump.time.TimeUtils;
 
 
 public class MultithreadedDumpTest {

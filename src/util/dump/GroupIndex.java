@@ -27,7 +27,7 @@ import gnu.trove.procedure.TIntObjectProcedure;
 import gnu.trove.procedure.TLongObjectProcedure;
 import util.dump.stream.ExternalizableObjectInputStream;
 import util.dump.stream.SingleTypeObjectInputStream;
-import util.reflection.FieldAccessor;
+import util.dump.reflection.FieldAccessor;
 
 
 /**

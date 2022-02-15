@@ -7,7 +7,7 @@ import org.junit.Test;
 import gnu.trove.set.TLongSet;
 import gnu.trove.set.hash.TLongHashSet;
 import util.dump.GroupIndex.Positions;
-import util.reflection.FieldAccessor;
+import util.dump.reflection.FieldAccessor;
 
 
 public class GroupIndexTest extends AbstractGroupIndexTest {

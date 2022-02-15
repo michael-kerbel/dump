@@ -7,7 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInput;
 
-import util.io.IOUtils;
+import util.dump.io.IOUtils;
 
 
 public class SingleTypeObjectInputStream<E extends Externalizable> extends DataInputStream implements ObjectInput {

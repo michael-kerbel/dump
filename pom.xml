@@ -4,18 +4,25 @@
    <modelVersion>4.0.0</modelVersion>
    <groupId>mkr</groupId>
    <artifactId>util-dump</artifactId>
-   <name>mkr util dump</name>
+   <version>1.20211012.1</version>
 
-   <parent>
-      <groupId>mkr</groupId>
-      <artifactId>util-pom</artifactId>
-      <version>1.20211012.1</version>
-   </parent>
+   <name>mkr util dump</name>
 
    <dependencies>
       <dependency>
-         <groupId>mkr</groupId>
-         <artifactId>util-base</artifactId>
+         <groupId>org.slf4j</groupId>
+         <artifactId>slf4j-api</artifactId>
+         <version>1.7.7</version>
+      </dependency>
+      <dependency>
+         <groupId>com.google.code.findbugs</groupId>
+         <artifactId>jsr305</artifactId>
+         <version>3.0.2</version>
+      </dependency>
+      <dependency>
+         <groupId>net.sf.trove4j</groupId>
+         <artifactId>trove4j</artifactId>
+         <version>3.0.3</version>
       </dependency>
       <dependency>
          <groupId>org.iq80.snappy</groupId>
@@ -32,10 +39,45 @@
          <artifactId>zstd-jni</artifactId>
          <version>1.3.4-4</version>
       </dependency>
+
+      <!-- for testing -->
+      <dependency>
+         <groupId>org.slf4j</groupId>
+         <artifactId>slf4j-log4j12</artifactId>
+         <version>1.7.7</version>
+         <scope>test</scope>
+      </dependency>
+
+      <dependency>
+         <groupId>junit</groupId>
+         <artifactId>junit</artifactId>
+         <version>4.5</version>
+         <scope>test</scope>
+      </dependency>
+
+      <dependency>
+         <groupId>org.assertj</groupId>
+         <artifactId>assertj-core</artifactId>
+         <version>[3.13.2]</version>
+         <scope>test</scope>
+      </dependency>
    </dependencies>
 
    <build>
+      <sourceDirectory>${basedir}/src</sourceDirectory>
+      <testSourceDirectory>${basedir}/test</testSourceDirectory>
+
       <plugins>
+
+         <plugin>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <configuration>
+               <encoding>UTF-8</encoding>
+               <source>11</source>
+               <target>11</target>
+            </configuration>
+         </plugin>
+
          <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-surefire-plugin</artifactId>

@@ -21,9 +21,9 @@ import gnu.trove.map.hash.TIntLongHashMap;
 import gnu.trove.map.hash.TLongIntHashMap;
 import gnu.trove.map.hash.TLongLongHashMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
+import util.dump.reflection.FieldAccessor;
 import util.dump.stream.ExternalizableObjectInputStream;
 import util.dump.stream.SingleTypeObjectInputStream;
-import util.reflection.FieldAccessor;
 
 
 public class UniqueIndex<E> extends DumpIndex<E> {

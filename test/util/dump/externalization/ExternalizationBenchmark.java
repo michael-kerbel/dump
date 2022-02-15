@@ -9,7 +9,7 @@ import java.io.PrintStream;
 import util.dump.stream.JavaObjectStreamProvider;
 import util.dump.stream.SingleTypeObjectInputStream;
 import util.dump.stream.SingleTypeObjectOutputStream;
-import util.time.StopWatch;
+import util.dump.time.StopWatch;
 
 
 public class ExternalizationBenchmark {
