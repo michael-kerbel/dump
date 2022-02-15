@@ -50,7 +50,7 @@ import org.slf4j.LoggerFactory;
 import gnu.trove.list.TByteList;
 import gnu.trove.list.array.TByteArrayList;
 import gnu.trove.set.hash.TLongHashSet;
-import util.collections.SoftLRUCache;
+import util.dump.cache.SoftLRUCache;
 import util.dump.ExternalizableBean.externalizationVersion;
 import util.dump.UniqueIndex.DuplicateKeyException;
 import util.dump.sort.InfiniteSorter;
@@ -58,8 +58,8 @@ import util.dump.stream.AesCrypter;
 import util.dump.stream.Compression;
 import util.dump.stream.ObjectStreamProvider;
 import util.dump.stream.SingleTypeObjectStreamProvider;
-import util.io.IOUtils;
-import util.time.StopWatch;
+import util.dump.io.IOUtils;
+import util.dump.time.StopWatch;
 
 
 /**
@@ -661,18 +661,6 @@ public class Dump<E> implements DumpInput<E> {
             flush();
          }
          return new DeletionAwareDumpReader(_dumpFile, _streamProvider).iterator();
-      }
-      catch ( IOException argh ) {
-         throw new RuntimeException("Failed to create a DumpReader.", argh);
-      }
-   }
-
-   public MultithreadedDumpReader<E> multithreadedIterator( DumpIndex<E> index ) {
-      try {
-         if ( _dirty.get() ) {
-            flush();
-         }
-         return new MultithreadedDumpReader<>(this, index);
       }
       catch ( IOException argh ) {
          throw new RuntimeException("Failed to create a DumpReader.", argh);

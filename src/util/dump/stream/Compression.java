@@ -21,8 +21,8 @@ import com.github.luben.zstd.ZstdDictTrainer;
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
-import util.collections.LRUCache;
-import util.io.IOUtils;
+import util.dump.cache.LRUCache;
+import util.dump.io.IOUtils;
 
 
 /**

@@ -22,9 +22,9 @@ import org.junit.runners.Parameterized.Parameters;
 import gnu.trove.set.TIntSet;
 import gnu.trove.set.hash.TIntHashSet;
 import junit.framework.Assert;
-import util.reflection.FieldAccessor;
-import util.reflection.FieldFieldAccessor;
-import util.reflection.Reflection;
+import util.dump.reflection.FieldAccessor;
+import util.dump.reflection.FieldFieldAccessor;
+import util.dump.reflection.Reflection;
 
 
 @RunWith(Parameterized.class)

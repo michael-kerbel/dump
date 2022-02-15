@@ -27,10 +27,10 @@ import gnu.trove.list.TLongList;
 import util.dump.Dump.DumpAccessFlag;
 import util.dump.stream.ExternalizableObjectOutputStream;
 import util.dump.stream.SingleTypeObjectOutputStream;
-import util.io.IOUtils;
-import util.reflection.FieldAccessor;
-import util.reflection.FieldFieldAccessor;
-import util.reflection.Reflection;
+import util.dump.io.IOUtils;
+import util.dump.reflection.FieldAccessor;
+import util.dump.reflection.FieldFieldAccessor;
+import util.dump.reflection.Reflection;
 
 
 /**

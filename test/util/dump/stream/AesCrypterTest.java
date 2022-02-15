@@ -12,7 +12,7 @@ import org.junit.Test;
 
 import util.dump.Dump;
 import util.dump.ExternalizableBean;
-import util.io.IOUtils;
+import util.dump.io.IOUtils;
 
 
 public class AesCrypterTest {

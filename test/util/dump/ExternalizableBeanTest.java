@@ -45,7 +45,7 @@ import util.dump.ExternalizableBean.externalizationPadding;
 import util.dump.ExternalizableBean.externalize;
 import util.dump.stream.SingleTypeObjectInputStream;
 import util.dump.stream.SingleTypeObjectOutputStream;
-import util.reflection.Reflection;
+import util.dump.reflection.Reflection;
 
 
 public class ExternalizableBeanTest {

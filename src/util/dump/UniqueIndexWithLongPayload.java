@@ -6,7 +6,7 @@ import java.util.function.ToLongFunction;
 
 import gnu.trove.map.TLongLongMap;
 import gnu.trove.map.hash.TLongLongHashMap;
-import util.reflection.FieldAccessor;
+import util.dump.reflection.FieldAccessor;
 
 
 /**

@@ -36,10 +36,10 @@ import org.slf4j.LoggerFactory;
 import util.dump.ExternalizableBean.externalizationPadding;
 import util.dump.ExternalizableBean.externalize;
 import util.dump.stream.ExternalizableObjectOutputStream;
-import util.reflection.FieldAccessor;
-import util.reflection.FieldFieldAccessor;
-import util.reflection.MethodFieldAccessor;
-import util.reflection.UnsafeFieldFieldAccessor;
+import util.dump.reflection.FieldAccessor;
+import util.dump.reflection.FieldFieldAccessor;
+import util.dump.reflection.MethodFieldAccessor;
+import util.dump.reflection.UnsafeFieldFieldAccessor;
 
 
 @SuppressWarnings({ "unchecked", "ForLoopReplaceableByForEach", "WeakerAccess", "rawtypes" })

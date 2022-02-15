@@ -10,12 +10,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.StreamSupport;
 
 import util.dump.Dump;
 import util.dump.DumpUtils;
 import util.dump.ExternalizableBean;
-import util.time.StopWatch;
+import util.dump.time.StopWatch;
 
 
 public class CompressionBenchmark {
