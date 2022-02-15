@@ -10,7 +10,7 @@ public class MethodFieldAccessor
 
   private final Method _getter;
   private final Method _setter;
-  private Class        _type;
+  private final Class  _type;
   private Class[]      _genericTypes;
 
   public MethodFieldAccessor( Method getter, Method setter ) {

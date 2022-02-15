@@ -8,7 +8,7 @@ import java.lang.reflect.Field;
 
 public class UnsafeFieldFieldAccessor extends FieldFieldAccessor {
 
-   private static Logger _log = LoggerFactory.getLogger(UnsafeFieldFieldAccessor.class);
+   private static final Logger _log = LoggerFactory.getLogger(UnsafeFieldFieldAccessor.class);
 
    static sun.misc.Unsafe UNSAFE;
 
@@ -23,7 +23,7 @@ public class UnsafeFieldFieldAccessor extends FieldFieldAccessor {
       }
    }
 
-   private long           _fieldOffset;
+   private final long _fieldOffset;
 
 
    public UnsafeFieldFieldAccessor( Field field ) {

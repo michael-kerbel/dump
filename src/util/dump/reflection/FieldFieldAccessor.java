@@ -5,8 +5,7 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 
 
-public class FieldFieldAccessor
-    implements FieldAccessor {
+public class FieldFieldAccessor implements FieldAccessor {
 
   Field   _field;
   Class   _type;
