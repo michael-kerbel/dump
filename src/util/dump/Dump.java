@@ -667,18 +667,6 @@ public class Dump<E> implements DumpInput<E> {
       }
    }
 
-   public MultithreadedDumpReader<E> multithreadedIterator( DumpIndex<E> index ) {
-      try {
-         if ( _dirty.get() ) {
-            flush();
-         }
-         return new MultithreadedDumpReader<>(this, index);
-      }
-      catch ( IOException argh ) {
-         throw new RuntimeException("Failed to create a DumpReader.", argh);
-      }
-   }
-
    /**
     * Setter for the cache to use. If you are unhappy with the default SoftLRUCache (why should you!?), you can specify your own here.
     */
