@@ -8,7 +8,7 @@ import java.util.function.Function;
 
 import gnu.trove.map.TLongObjectMap;
 import gnu.trove.map.hash.TLongObjectHashMap;
-import util.reflection.FieldAccessor;
+import util.dump.reflection.FieldAccessor;
 
 
 /**

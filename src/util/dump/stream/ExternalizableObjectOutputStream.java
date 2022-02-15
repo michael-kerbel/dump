@@ -11,7 +11,7 @@ import java.util.Date;
 import java.util.UUID;
 
 import util.dump.stream.ExternalizableObjectStreamProvider.InstanceType;
-import util.io.IOUtils;
+import util.dump.io.IOUtils;
 
 
 public class ExternalizableObjectOutputStream extends DataOutputStream implements ObjectOutput, CompressingObjectOutputStream {

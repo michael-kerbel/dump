@@ -6,7 +6,7 @@ import java.io.File;
 
 import org.junit.Test;
 
-import util.reflection.FieldAccessor;
+import util.dump.reflection.FieldAccessor;
 
 
 public class InfiniteGroupIndexTest extends AbstractGroupIndexTest {

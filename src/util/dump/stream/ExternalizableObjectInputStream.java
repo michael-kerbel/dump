@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import util.dump.stream.ExternalizableObjectStreamProvider.InstanceType;
-import util.io.IOUtils;
+import util.dump.io.IOUtils;
 
 
 public class ExternalizableObjectInputStream extends DataInputStream implements ObjectInput {

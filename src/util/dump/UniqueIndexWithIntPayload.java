@@ -6,7 +6,7 @@ import java.util.function.ToIntFunction;
 
 import gnu.trove.map.TLongIntMap;
 import gnu.trove.map.hash.TLongIntHashMap;
-import util.reflection.FieldAccessor;
+import util.dump.reflection.FieldAccessor;
 
 
 /**

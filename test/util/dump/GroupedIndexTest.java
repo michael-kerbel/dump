@@ -2,7 +2,7 @@ package util.dump;
 
 import org.junit.Test;
 
-import util.reflection.FieldAccessor;
+import util.dump.reflection.FieldAccessor;
 
 
 public class GroupedIndexTest extends AbstractGroupIndexTest {

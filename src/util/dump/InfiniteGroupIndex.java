@@ -26,11 +26,11 @@ import gnu.trove.list.TLongList;
 import gnu.trove.list.array.TLongArrayList;
 import gnu.trove.procedure.TIntObjectProcedure;
 import gnu.trove.procedure.TLongObjectProcedure;
-import util.collections.SoftLRUCache;
+import util.dump.cache.SoftLRUCache;
 import util.dump.GroupIndex.Positions;
 import util.dump.sort.InfiniteSorter;
 import util.dump.stream.SingleTypeObjectStreamProvider;
-import util.reflection.FieldAccessor;
+import util.dump.reflection.FieldAccessor;
 
 
 /**

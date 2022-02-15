@@ -9,7 +9,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import util.time.StopWatch;
+import util.dump.time.StopWatch;
 
 
 public class MultithreadedDumpReaderTest {

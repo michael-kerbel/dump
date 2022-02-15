@@ -4,7 +4,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 import util.dump.UniqueIndex.DuplicateKeyException;
-import util.reflection.FieldAccessor;
+import util.dump.reflection.FieldAccessor;
 
 
 /**

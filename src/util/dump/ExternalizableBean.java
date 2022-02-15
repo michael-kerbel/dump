@@ -69,7 +69,7 @@ import util.dump.ExternalizationHelper.FieldType;
 import util.dump.ExternalizationHelper.StreamCache;
 import util.dump.stream.SingleTypeObjectInputStream;
 import util.dump.stream.SingleTypeObjectOutputStream;
-import util.reflection.FieldAccessor;
+import util.dump.reflection.FieldAccessor;
 
 
 /**
