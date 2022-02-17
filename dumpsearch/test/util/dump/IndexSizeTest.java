@@ -14,7 +14,7 @@ import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import util.io.IOUtils;
+import util.dump.io.IOUtils;
 
 
 @Ignore

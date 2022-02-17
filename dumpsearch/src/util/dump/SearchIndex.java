@@ -46,9 +46,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import gnu.trove.list.TLongList;
-import util.reflection.FieldAccessor;
-import util.reflection.FieldFieldAccessor;
-import util.reflection.Reflection;
+import util.dump.reflection.FieldAccessor;
+import util.dump.reflection.FieldFieldAccessor;
+import util.dump.reflection.Reflection;
 
 
 /**
