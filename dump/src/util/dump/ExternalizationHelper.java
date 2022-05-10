@@ -35,15 +35,18 @@ import org.slf4j.LoggerFactory;
 
 import util.dump.ExternalizableBean.externalizationPadding;
 import util.dump.ExternalizableBean.externalize;
-import util.dump.stream.ExternalizableObjectOutputStream;
 import util.dump.reflection.FieldAccessor;
 import util.dump.reflection.FieldFieldAccessor;
 import util.dump.reflection.MethodFieldAccessor;
 import util.dump.reflection.UnsafeFieldFieldAccessor;
+import util.dump.stream.ExternalizableObjectOutputStream;
 
 
 @SuppressWarnings({ "unchecked", "ForLoopReplaceableByForEach", "WeakerAccess", "rawtypes" })
 class ExternalizationHelper {
+
+   private static final Set<Class<?>> IMPLEMENTED_GENERICS = Set.of(Boolean.class, Byte.class, Character.class, Short.class, Integer.class, Long.class,
+         Float.class, Double.class, String.class, Enum.class);
 
    private static final long serialVersionUID = -1816997029156670474L;
 
@@ -51,8 +54,8 @@ class ExternalizationHelper {
 
    private static final Map<Class, ClassConfig> CLASS_CONFIGS = new ConcurrentHashMap<>();
 
-   static Map<Class, Boolean>      CLASS_CHANGED_INCOMPATIBLY = new HashMap<>();
-   static ThreadLocal<StreamCache> STREAM_CACHE               = ThreadLocal.withInitial(StreamCache::new);
+   static final Map<Class, Boolean>      CLASS_CHANGED_INCOMPATIBLY = new ConcurrentHashMap<>();
+   static final ThreadLocal<StreamCache> STREAM_CACHE               = ThreadLocal.withInitial(StreamCache::new);
 
    static {
       try {
@@ -112,6 +115,24 @@ class ExternalizationHelper {
       }
    }
 
+   static Boolean readBoolean( ObjectInput in ) throws IOException {
+      Boolean s = null;
+      boolean isNotNull = in.readBoolean();
+      if ( isNotNull ) {
+         s = in.readBoolean();
+      }
+      return s;
+   }
+
+   static Byte readByte( ObjectInput in ) throws IOException {
+      Byte s = null;
+      boolean isNotNull = in.readBoolean();
+      if ( isNotNull ) {
+         s = in.readByte();
+      }
+      return s;
+   }
+
    static byte[] readByteArray( DataInput in ) throws IOException {
       byte[] d = null;
       boolean isNotNull = in.readBoolean();
@@ -124,10 +145,36 @@ class ExternalizationHelper {
       return d;
    }
 
+   static Character readCharacter( ObjectInput in ) throws IOException {
+      Character s = null;
+      boolean isNotNull = in.readBoolean();
+      if ( isNotNull ) {
+         s = in.readChar();
+      }
+      return s;
+   }
+
+   static void readCollection( ObjectInput in, FieldAccessor f, Class defaultType, Class defaultGenericType, ExternalizableBean thisInstance,
+         ClassConfig config ) throws Exception {
+      Collection d = null;
+      boolean isNotNull = in.readBoolean();
+      if ( isNotNull ) {
+         boolean isDefaultType = in.readBoolean();
+         int size = in.readInt();
+         Class[] lastNonDefaultClass = new Class[1];
+         ThrowingSupplier<Object> reader = getGenericReader(in, defaultGenericType, config, lastNonDefaultClass);
+         d = readCollectionContainer(in, defaultType, isDefaultType, size, config, reader);
+      }
+      if ( f != null ) {
+         f.set(thisInstance, d);
+      }
+   }
+
    static Collection readCollectionContainer( ObjectInput in, Class defaultType, boolean isDefaultType, int size, ClassConfig config,
          ThrowingSupplier instanceReader ) throws Exception {
 
-      boolean unmodifiableList = false, unmodifiableSet = false;
+      ContainerType containerType = ContainerType.DefaultMutable;
+
       Collection d;
       if ( isDefaultType ) {
          if ( defaultType.equals(ArrayList.class) ) {
@@ -154,15 +201,37 @@ class ExternalizationHelper {
             break;
          case "java.util.Collections$UnmodifiableRandomAccessList":
          case "java.util.Collections$UnmodifiableList":
-            d = new ArrayList<>();
-            unmodifiableList = true;
+            d = new ArrayList<>(size);
+            containerType = ContainerType.UnmodifiableList;
             break;
          case "java.util.Collections$UnmodifiableSet":
-            d = new HashSet<>();
-            unmodifiableSet = true;
+            d = new HashSet<>(size, 1.0f);
+            containerType = ContainerType.UnmodifiableSet;
             break;
          case "java.util.Arrays$ArrayList":
-            d = new ArrayList<>();
+            d = new ArrayList<>(size);
+            break;
+         case "java.util.ImmutableCollections$List12":
+            switch ( size ) {
+            case 1:
+               return List.of(instanceReader.get());
+            case 2:
+               return List.of(instanceReader.get(), instanceReader.get());
+            }
+         case "java.util.ImmutableCollections$ListM":
+            d = new ArrayList<>(size);
+            containerType = ContainerType.ImmutableList;
+            break;
+         case "java.util.ImmutableCollections$Set12":
+            switch ( size ) {
+            case 1:
+               return Set.of(instanceReader.get());
+            case 2:
+               return Set.of(instanceReader.get(), instanceReader.get());
+            }
+         case "java.util.ImmutableCollections$SetN":
+            d = new HashSet<>(size, 1.0f);
+            containerType = ContainerType.ImmutableSet;
             break;
          default:
             Class c = forName(className, config);
@@ -175,50 +244,13 @@ class ExternalizationHelper {
          d.add(instanceReader.get());
       }
 
-      if ( unmodifiableList ) {
-         d = Collections.unmodifiableList((List)d);
-      } else if ( unmodifiableSet ) {
-         d = Collections.unmodifiableSet((Set)d);
-      }
-
-      return d;
-   }
-
-   static void readCollectionOfExternalizables( ObjectInput in, FieldAccessor f, Class defaultType, Class defaultGenericType, ExternalizableBean thisInstance,
-         ClassConfig config ) throws Exception {
-      Collection d = null;
-      boolean isNotNull = in.readBoolean();
-      if ( isNotNull ) {
-         boolean isDefaultType = in.readBoolean();
-         int size = in.readInt();
-         Class[] lastNonDefaultClass = new Class[1];
-         d = readCollectionContainer(in, defaultType, isDefaultType, size, config,
-               () -> readExternalizable(in, defaultGenericType, lastNonDefaultClass, config));
-
-      }
-      if ( f != null ) {
-         f.set(thisInstance, d);
-      }
-   }
-
-   static void readCollectionOfStrings( ObjectInput in, FieldAccessor f, Class defaultType, ExternalizableBean thisInstance, ClassConfig config )
-         throws Exception {
-      Collection d = null;
-      boolean isNotNull = in.readBoolean();
-      if ( isNotNull ) {
-         boolean isDefaultType = in.readBoolean();
-         int size = in.readInt();
-         d = readCollectionContainer(in, defaultType, isDefaultType, size, config, () -> {
-            String s = null;
-            if ( in.readBoolean() ) {
-               s = DumpUtils.readUTF(in);
-            }
-            return s;
-         });
-      }
-      if ( f != null ) {
-         f.set(thisInstance, d);
-      }
+      return switch ( containerType ) {
+         default -> d;
+         case UnmodifiableList -> Collections.unmodifiableList((List)d);
+         case UnmodifiableSet -> Collections.unmodifiableSet((Set)d);
+         case ImmutableList -> List.copyOf(d);
+         case ImmutableSet -> Set.copyOf(d);
+      };
    }
 
    static Date readDate( ObjectInput in ) throws IOException {
@@ -242,6 +274,15 @@ class ExternalizationHelper {
       return d;
    }
 
+   static Double readDouble( ObjectInput in ) throws IOException {
+      Double d = null;
+      boolean isNotNull = in.readBoolean();
+      if ( isNotNull ) {
+         d = in.readDouble();
+      }
+      return d;
+   }
+
    static double[] readDoubleArray( DataInput in ) throws IOException {
       double[] d = null;
       boolean isNotNull = in.readBoolean();
@@ -254,6 +295,7 @@ class ExternalizationHelper {
       return d;
    }
 
+   // TODO use this method from ExternalizableBean#readExternal
    static Enum<?> readEnum( ObjectInput in, Class<? extends Enum> enumClass ) throws IOException {
       Enum e = null;
       boolean isNotNull = in.readBoolean();
@@ -310,6 +352,15 @@ class ExternalizationHelper {
       return d;
    }
 
+   static Float readFloat( ObjectInput in ) throws IOException {
+      Float f = null;
+      boolean isNotNull = in.readBoolean();
+      if ( isNotNull ) {
+         f = in.readFloat();
+      }
+      return f;
+   }
+
    static float[] readFloatArray( DataInput in ) throws IOException {
       float[] d = null;
       boolean isNotNull = in.readBoolean();
@@ -332,6 +383,24 @@ class ExternalizationHelper {
          }
       }
       return d;
+   }
+
+   static Integer readInteger( ObjectInput in ) throws IOException {
+      Integer i = null;
+      boolean isNotNull = in.readBoolean();
+      if ( isNotNull ) {
+         i = in.readInt();
+      }
+      return i;
+   }
+
+   static Long readLong( ObjectInput in ) throws IOException {
+      Long l = null;
+      boolean isNotNull = in.readBoolean();
+      if ( isNotNull ) {
+         l = in.readLong();
+      }
+      return l;
    }
 
    static long[] readLongArray( DataInput in ) throws IOException {
@@ -357,8 +426,8 @@ class ExternalizationHelper {
          Class[] lastNonDefaultKeyClass = new Class[1];
          Class[] lastNonDefaultValueClass = new Class[1];
 
-         ThrowingSupplier<Object> keyReader = getReader(in, defaultGenericType0, config, lastNonDefaultKeyClass);
-         ThrowingSupplier<Object> valueReader = getReader(in, defaultGenericType1, config, lastNonDefaultValueClass);
+         ThrowingSupplier<Object> keyReader = getGenericReader(in, defaultGenericType0, config, lastNonDefaultKeyClass);
+         ThrowingSupplier<Object> valueReader = getGenericReader(in, defaultGenericType1, config, lastNonDefaultValueClass);
 
          d = readMapContainer(in, defaultType, isDefaultType, size, config, keyReader, valueReader, defaultGenericType0);
       }
@@ -427,6 +496,15 @@ class ExternalizationHelper {
       return d;
    }
 
+   static Short readShort( ObjectInput in ) throws IOException {
+      Short s = null;
+      boolean isNotNull = in.readBoolean();
+      if ( isNotNull ) {
+         s = in.readShort();
+      }
+      return s;
+   }
+
    static String readString( ObjectInput in ) throws IOException {
       String s = null;
       boolean isNotNull = in.readBoolean();
@@ -462,6 +540,20 @@ class ExternalizationHelper {
       return uuid;
    }
 
+   static void writeBoolean( ObjectOutput out, Boolean s ) throws IOException {
+      out.writeBoolean(s != null);
+      if ( s != null ) {
+         out.writeBoolean(s);
+      }
+   }
+
+   static void writeByte( ObjectOutput out, Byte s ) throws IOException {
+      out.writeBoolean(s != null);
+      if ( s != null ) {
+         out.writeByte(s);
+      }
+   }
+
    static void writeByteArray( byte[] d, ObjectOutput out ) throws IOException {
       out.writeBoolean(d != null);
       if ( d != null ) {
@@ -472,13 +564,34 @@ class ExternalizationHelper {
       }
    }
 
+   static void writeCharacter( ObjectOutput out, Character s ) throws IOException {
+      out.writeBoolean(s != null);
+      if ( s != null ) {
+         out.writeChar(s);
+      }
+   }
+
+   static void writeCollection( ObjectOutput out, FieldAccessor f, Class defaultType, Class defaultGenericType, ExternalizableBean thisInstance )
+         throws Exception {
+      Collection<?> d = (Collection<?>)f.get(thisInstance);
+      out.writeBoolean(d != null);
+      if ( d != null ) {
+         writeCollectionContainer(out, defaultType, d);
+         Class[] lastNonDefaultClass = new Class[1];
+         ThrowingConsumer<Object, Exception> writer = getGenericWriter(out, defaultGenericType, lastNonDefaultClass);
+         for ( Object n : d ) {
+            writer.accept(n);
+         }
+      }
+   }
+
    static void writeCollectionContainer( ObjectOutput out, Class defaultType, Collection d ) throws IOException {
-      Class listClass = d.getClass();
-      boolean isDefaultType = listClass.equals(defaultType);
+      Class collectionClass = d.getClass();
+      boolean isDefaultType = collectionClass.equals(defaultType);
       out.writeBoolean(isDefaultType);
       out.writeInt(d.size());
       if ( !isDefaultType ) {
-         out.writeUTF(listClass.getName());
+         out.writeUTF(collectionClass.getName());
       }
    }
 
@@ -499,6 +612,13 @@ class ExternalizationHelper {
       }
    }
 
+   static void writeDouble( ObjectOutput out, Double s ) throws IOException {
+      out.writeBoolean(s != null);
+      if ( s != null ) {
+         out.writeDouble(s);
+      }
+   }
+
    static void writeDoubleArray( double[] d, ObjectOutput out ) throws IOException {
       out.writeBoolean(d != null);
       if ( d != null ) {
@@ -509,6 +629,7 @@ class ExternalizationHelper {
       }
    }
 
+   // TODO use this method from ExternalizableBean#readExternal
    static void writeEnum( ObjectOutput out, Enum<?> e ) throws IOException {
       out.writeBoolean(e != null);
       if ( e != null ) {
@@ -548,6 +669,13 @@ class ExternalizationHelper {
 
    }
 
+   static void writeFloat( ObjectOutput out, Float s ) throws IOException {
+      out.writeBoolean(s != null);
+      if ( s != null ) {
+         out.writeFloat(s);
+      }
+   }
+
    static void writeFloatArray( float[] d, ObjectOutput out ) throws IOException {
       out.writeBoolean(d != null);
       if ( d != null ) {
@@ -568,33 +696,17 @@ class ExternalizationHelper {
       }
    }
 
-   static void writeListOfExternalizables( ObjectOutput out, FieldAccessor f, Class defaultType, Class defaultGenericType, ExternalizableBean thisInstance )
-         throws Exception {
-      List d = (List)f.get(thisInstance);
-      out.writeBoolean(d != null);
-      if ( d != null ) {
-         writeCollectionContainer(out, defaultType, d);
-
-         Class[] lastNonDefaultClass = new Class[1];
-         for ( int j = 0, llength = d.size(); j < llength; j++ ) {
-            Externalizable instance = (Externalizable)d.get(j);
-            writeExternalizable(out, instance, defaultGenericType, lastNonDefaultClass);
-         }
+   static void writeInteger( ObjectOutput out, Integer s ) throws IOException {
+      out.writeBoolean(s != null);
+      if ( s != null ) {
+         out.writeInt(s);
       }
    }
 
-   static void writeListOfStrings( ObjectOutput out, FieldAccessor f, Class defaultType, ExternalizableBean thisInstance ) throws Exception {
-      List d = (List)f.get(thisInstance);
-      out.writeBoolean(d != null);
-      if ( d != null ) {
-         writeCollectionContainer(out, defaultType, d);
-         for ( int j = 0, llength = d.size(); j < llength; j++ ) {
-            String s = (String)d.get(j);
-            out.writeBoolean(s != null);
-            if ( s != null ) {
-               DumpUtils.writeUTF(s, out);
-            }
-         }
+   static void writeLong( ObjectOutput out, Long l ) throws IOException {
+      out.writeBoolean(l != null);
+      if ( l != null ) {
+         out.writeLong(l);
       }
    }
 
@@ -619,8 +731,8 @@ class ExternalizationHelper {
          Class[] lastNonDefaultKeyClass = new Class[1];
          Class[] lastNonDefaultValueClass = new Class[1];
 
-         ThrowingConsumer<Object, Exception> keyWriter = getWriter(out, defaultGenericType0, lastNonDefaultKeyClass);
-         ThrowingConsumer<Object, Exception> valueWriter = getWriter(out, defaultGenericType1, lastNonDefaultValueClass);
+         ThrowingConsumer<Object, Exception> keyWriter = getGenericWriter(out, defaultGenericType0, lastNonDefaultKeyClass);
+         ThrowingConsumer<Object, Exception> valueWriter = getGenericWriter(out, defaultGenericType1, lastNonDefaultValueClass);
 
          for ( Map.Entry<?, ?> entry : d.entrySet() ) {
             keyWriter.accept(entry.getKey());
@@ -642,32 +754,10 @@ class ExternalizationHelper {
       }
    }
 
-   static void writeSetOfExternalizables( ObjectOutput out, FieldAccessor f, Class defaultType, Class defaultGenericType, ExternalizableBean thisInstance )
-         throws Exception {
-      Set<Externalizable> d = (Set)f.get(thisInstance);
-      out.writeBoolean(d != null);
-      if ( d != null ) {
-         writeCollectionContainer(out, defaultType, d);
-
-         Class[] lastNonDefaultClass = new Class[1];
-         for ( Externalizable instance : d ) {
-            writeExternalizable(out, instance, defaultGenericType, lastNonDefaultClass);
-         }
-      }
-   }
-
-   static void writeSetOfStrings( ObjectOutput out, FieldAccessor f, Class defaultType, ExternalizableBean thisInstance ) throws Exception {
-      Set<String> d = (Set)f.get(thisInstance);
-      out.writeBoolean(d != null);
-      if ( d != null ) {
-         writeCollectionContainer(out, defaultType, d);
-
-         for ( String s : d ) {
-            out.writeBoolean(s != null);
-            if ( s != null ) {
-               DumpUtils.writeUTF(s, out);
-            }
-         }
+   static void writeShort( ObjectOutput out, Short s ) throws IOException {
+      out.writeBoolean(s != null);
+      if ( s != null ) {
+         out.writeShort(s);
       }
    }
 
@@ -697,27 +787,59 @@ class ExternalizationHelper {
    }
 
    @Nonnull
-   private static ThrowingSupplier<Object> getReader( ObjectInput in, Class genericType, ClassConfig config, Class[] lastNonDefaultClass ) {
+   private static ThrowingSupplier<Object> getGenericReader( ObjectInput in, Class genericType, ClassConfig config, Class[] lastNonDefaultClass ) {
       if ( Externalizable.class.isAssignableFrom(genericType) ) {
          return () -> readExternalizable(in, genericType, lastNonDefaultClass, config);
       } else if ( String.class == genericType ) {
          return () -> readString(in);
       } else if ( Enum.class.isAssignableFrom(genericType) ) {
          return () -> readEnum(in, genericType);
+      } else if ( Boolean.class == genericType ) {
+         return () -> readBoolean(in);
+      } else if ( Byte.class == genericType ) {
+         return () -> readByte(in);
+      } else if ( Character.class == genericType ) {
+         return () -> readCharacter(in);
+      } else if ( Short.class == genericType ) {
+         return () -> readShort(in);
+      } else if ( Integer.class == genericType ) {
+         return () -> readInteger(in);
+      } else if ( Long.class == genericType ) {
+         return () -> readLong(in);
+      } else if ( Float.class == genericType ) {
+         return () -> readFloat(in);
+      } else if ( Double.class == genericType ) {
+         return () -> readDouble(in);
       } else {
-         throw new IllegalArgumentException("Map reader only supports String and Externalizable so far!");
+         throw new IllegalArgumentException("Generic reader does not yet support " + genericType.getName() + "!");
       }
    }
 
-   private static ThrowingConsumer<Object, Exception> getWriter( ObjectOutput out, Class genericType, Class[] lastNonDefaultClass ) {
+   private static ThrowingConsumer<Object, Exception> getGenericWriter( ObjectOutput out, Class genericType, Class[] lastNonDefaultClass ) {
       if ( Externalizable.class.isAssignableFrom(genericType) ) {
          return instance -> writeExternalizable(out, (Externalizable)instance, genericType, lastNonDefaultClass);
       } else if ( String.class == genericType ) {
          return instance -> writeString(out, (String)instance);
       } else if ( Enum.class.isAssignableFrom(genericType) ) {
          return instance -> writeEnum(out, (Enum<?>)instance);
+      } else if ( Boolean.class == genericType ) {
+         return instance -> writeBoolean(out, (Boolean)instance);
+      } else if ( Byte.class == genericType ) {
+         return instance -> writeByte(out, (Byte)instance);
+      } else if ( Character.class == genericType ) {
+         return instance -> writeCharacter(out, (Character)instance);
+      } else if ( Short.class == genericType ) {
+         return instance -> writeShort(out, (Short)instance);
+      } else if ( Integer.class == genericType ) {
+         return instance -> writeInteger(out, (Integer)instance);
+      } else if ( Long.class == genericType ) {
+         return instance -> writeLong(out, (Long)instance);
+      } else if ( Float.class == genericType ) {
+         return instance -> writeFloat(out, (Float)instance);
+      } else if ( Double.class == genericType ) {
+         return instance -> writeDouble(out, (Double)instance);
       } else {
-         throw new IllegalArgumentException("Map writer only supports String and Externalizable so far!");
+         throw new IllegalArgumentException("Generic writer does not yet support " + genericType.getName() + "!");
       }
    }
 
@@ -762,7 +884,7 @@ class ExternalizationHelper {
       pDoubleArray(double[].class, 23), //
       pFloatArray(float[].class, 24), //
       pLongArray(long[].class, 25), //
-      ListOfExternalizables(List.class, 26, true), //
+      List(List.class, 26, true), //
       ExternalizableArray(Externalizable[].class, 27, true), //
       ExternalizableArrayArray(Externalizable[][].class, 28, true), //
       Object(Object.class, 29), //
@@ -777,7 +899,7 @@ class ExternalizationHelper {
       EnumOld(Void.class, 38), // Void is just a placeholder - this FieldType is deprecated
       EnumSetOld(Override.class, 39), // Ovcrride is just a placeholder - this FieldType is deprecated
       ListOfStrings(System.class, 40, true), // System is just a placeholder - this FieldType is handled specially
-      SetOfExternalizables(Set.class, 41, true), //
+      Set(Set.class, 41, true), //
       SetOfStrings(Runtime.class, 42, true), // Runtime is just a placeholder - this FieldType is handled specially
       Enum(Enum.class, 43, true), //
       EnumSet(EnumSet.class, 44, true), //
@@ -788,6 +910,7 @@ class ExternalizationHelper {
       LocalDate(java.time.LocalDate.class, 49), //
       Instant(java.time.Instant.class, 50), //
       LocalTime(java.time.LocalTime.class, 51), //
+      // TODO add Map (beware of Collections.*Map or Treemaps using custom Comparators!)
       Map(java.util.Map.class, 52, true), //
       ;
 
@@ -834,6 +957,15 @@ class ExternalizationHelper {
       public boolean isLengthDynamic() {
          return _lengthDynamic;
       }
+   }
+
+
+   private enum ContainerType {
+      DefaultMutable,
+      ImmutableList,
+      ImmutableSet,
+      UnmodifiableList,
+      UnmodifiableSet,
    }
 
 
@@ -1002,10 +1134,12 @@ class ExternalizationHelper {
                   " This might be very slow of even fail, dependant on your ObjectStreamProvider." + //
                   " Please check, whether this is really what you wanted!");
          }
-         if ( (ft == FieldType.ListOfExternalizables || ft == FieldType.SetOfExternalizables) //
+         if ( (ft == FieldType.List || ft == FieldType.Set) //
                && (fi._fieldAccessor.getGenericTypes().length != 1 || !Externalizable.class.isAssignableFrom(fi._fieldAccessor.getGenericTypes()[0])) ) {
             if ( fi._fieldAccessor.getGenericTypes().length == 1 && String.class == fi._fieldAccessor.getGenericTypes()[0] ) {
-               ft = (ft == FieldType.ListOfExternalizables) ? FieldType.ListOfStrings : FieldType.SetOfStrings;
+               ft = (ft == FieldType.List) ? FieldType.ListOfStrings : FieldType.SetOfStrings;
+            } else if ( fi._fieldAccessor.getGenericTypes().length == 1 && IMPLEMENTED_GENERICS.contains(fi._fieldAccessor.getGenericTypes()[0]) ) {
+               // leave field type unchanged
             } else {
                ft = FieldType.Object;
                LoggerFactory.getLogger(_class).warn("The field type of index " + fi._fieldIndex + //
@@ -1202,9 +1336,9 @@ class ExternalizationHelper {
             _defaultType = type.getComponentType();
          } else if ( ft == FieldType.ExternalizableArrayArray ) {
             _defaultType = type.getComponentType().getComponentType();
-         } else if ( ft == FieldType.ListOfExternalizables || ft == FieldType.ListOfStrings ) {
+         } else if ( ft == FieldType.List || ft == FieldType.ListOfStrings ) {
             _defaultType = ArrayList.class;
-         } else if ( ft == FieldType.SetOfExternalizables || ft == FieldType.SetOfStrings ) {
+         } else if ( ft == FieldType.Set || ft == FieldType.SetOfStrings ) {
             _defaultType = HashSet.class;
          } else if ( ft == FieldType.Map ) {
             _defaultType = HashMap.class;
@@ -1221,23 +1355,30 @@ class ExternalizationHelper {
                      + " which has no public nullary constructor.");
             }
 
-            if ( ft == FieldType.ListOfExternalizables || ft == FieldType.ListOfStrings ) {
+            if ( ft == FieldType.List || ft == FieldType.ListOfStrings ) {
                if ( !List.class.isAssignableFrom(_defaultType) ) {
                   throw new RuntimeException(
                         "defaultType for a List field must be a List! Field " + fieldAccessor.getName() + " with index " + _fieldIndex + " has defaultType "
                               + _defaultType);
                }
             }
-            if ( ft == FieldType.SetOfExternalizables || ft == FieldType.SetOfStrings ) {
+            if ( ft == FieldType.Set || ft == FieldType.SetOfStrings ) {
                if ( !Set.class.isAssignableFrom(_defaultType) ) {
                   throw new RuntimeException(
                         "defaultType for a Set field must be a Set! Field " + fieldAccessor.getName() + " with index " + _fieldIndex + " has defaultType "
                               + _defaultType);
                }
             }
+            if ( ft == FieldType.Map ) {
+               if ( !Map.class.isAssignableFrom(_defaultType) ) {
+                  throw new RuntimeException(
+                        "defaultType for a Map field must be a Map! Field " + fieldAccessor.getName() + " with index " + _fieldIndex + " has defaultType "
+                              + _defaultType);
+               }
+            }
          }
 
-         if ( ft == FieldType.ListOfExternalizables || ft == FieldType.SetOfExternalizables ) {
+         if ( ft == FieldType.List || ft == FieldType.ListOfStrings || ft == FieldType.Set || ft == FieldType.SetOfStrings || ft == FieldType.Map ) {
             _defaultGenericType0 = fieldAccessor.getGenericTypes()[0];
             if ( annotation.defaultGenericType0() != System.class ) {
                _defaultGenericType0 = annotation.defaultGenericType0();
@@ -1258,27 +1399,7 @@ class ExternalizationHelper {
                }
             }
          }
-
          if ( ft == FieldType.Map ) {
-            _defaultGenericType0 = fieldAccessor.getGenericTypes()[0];
-            if ( annotation.defaultGenericType0() != System.class ) {
-               _defaultGenericType0 = annotation.defaultGenericType0();
-
-               try {
-                  _defaultGenericType0.newInstance();
-               }
-               catch ( Exception argh ) {
-                  throw new RuntimeException(
-                        " Field " + fieldAccessor.getName() + " with index " + _fieldIndex + " has defaultGenericType0 " + _defaultGenericType0
-                              + " which has no public nullary constructor.");
-               }
-
-               if ( !Externalizable.class.isAssignableFrom(_defaultType) ) {
-                  throw new RuntimeException(
-                        "defaultGenericType0 for a field with a collection of Externalizables must be an Externalizable! Field " + fieldAccessor.getName()
-                              + " with index " + _fieldIndex + " has defaultGenericType0 " + _defaultGenericType0);
-               }
-            }
             _defaultGenericType1 = fieldAccessor.getGenericTypes()[1];
             if ( annotation.defaultGenericType1() != System.class ) {
                _defaultGenericType1 = annotation.defaultGenericType1();

@@ -6,33 +6,45 @@ import static util.dump.ExternalizationHelper.CLASS_CHANGED_INCOMPATIBLY;
 import static util.dump.ExternalizationHelper.STREAM_CACHE;
 import static util.dump.ExternalizationHelper.forName;
 import static util.dump.ExternalizationHelper.getConfig;
+import static util.dump.ExternalizationHelper.readBoolean;
+import static util.dump.ExternalizationHelper.readByte;
 import static util.dump.ExternalizationHelper.readByteArray;
-import static util.dump.ExternalizationHelper.readCollectionOfExternalizables;
-import static util.dump.ExternalizationHelper.readCollectionOfStrings;
+import static util.dump.ExternalizationHelper.readCharacter;
+import static util.dump.ExternalizationHelper.readCollection;
 import static util.dump.ExternalizationHelper.readDate;
 import static util.dump.ExternalizationHelper.readDateArray;
+import static util.dump.ExternalizationHelper.readDouble;
 import static util.dump.ExternalizationHelper.readDoubleArray;
 import static util.dump.ExternalizationHelper.readExternalizableArray;
+import static util.dump.ExternalizationHelper.readFloat;
 import static util.dump.ExternalizationHelper.readFloatArray;
 import static util.dump.ExternalizationHelper.readIntArray;
+import static util.dump.ExternalizationHelper.readInteger;
+import static util.dump.ExternalizationHelper.readLong;
 import static util.dump.ExternalizationHelper.readLongArray;
 import static util.dump.ExternalizationHelper.readMap;
+import static util.dump.ExternalizationHelper.readShort;
 import static util.dump.ExternalizationHelper.readString;
 import static util.dump.ExternalizationHelper.readStringArray;
 import static util.dump.ExternalizationHelper.readUUID;
+import static util.dump.ExternalizationHelper.writeBoolean;
+import static util.dump.ExternalizationHelper.writeByte;
 import static util.dump.ExternalizationHelper.writeByteArray;
+import static util.dump.ExternalizationHelper.writeCharacter;
+import static util.dump.ExternalizationHelper.writeCollection;
 import static util.dump.ExternalizationHelper.writeDate;
 import static util.dump.ExternalizationHelper.writeDateArray;
+import static util.dump.ExternalizationHelper.writeDouble;
 import static util.dump.ExternalizationHelper.writeDoubleArray;
 import static util.dump.ExternalizationHelper.writeExternalizableArray;
+import static util.dump.ExternalizationHelper.writeFloat;
 import static util.dump.ExternalizationHelper.writeFloatArray;
 import static util.dump.ExternalizationHelper.writeIntArray;
-import static util.dump.ExternalizationHelper.writeListOfExternalizables;
-import static util.dump.ExternalizationHelper.writeListOfStrings;
+import static util.dump.ExternalizationHelper.writeInteger;
+import static util.dump.ExternalizationHelper.writeLong;
 import static util.dump.ExternalizationHelper.writeLongArray;
 import static util.dump.ExternalizationHelper.writeMap;
-import static util.dump.ExternalizationHelper.writeSetOfExternalizables;
-import static util.dump.ExternalizationHelper.writeSetOfStrings;
+import static util.dump.ExternalizationHelper.writeShort;
 import static util.dump.ExternalizationHelper.writeString;
 import static util.dump.ExternalizationHelper.writeStringArray;
 import static util.dump.ExternalizationHelper.writeUUID;
@@ -67,9 +79,9 @@ import util.dump.ExternalizationHelper.BytesCache;
 import util.dump.ExternalizationHelper.ClassConfig;
 import util.dump.ExternalizationHelper.FieldType;
 import util.dump.ExternalizationHelper.StreamCache;
+import util.dump.reflection.FieldAccessor;
 import util.dump.stream.SingleTypeObjectInputStream;
 import util.dump.stream.SingleTypeObjectOutputStream;
-import util.dump.reflection.FieldAccessor;
 
 
 /**
@@ -121,12 +133,15 @@ import util.dump.reflection.FieldAccessor;
  * </li><li>
  * generic Lists or Sets of <code>String</code> type, i.e. <code>List&lt;String&gt;</code> or <code>Set&lt;String&gt;</code>
  * </li><li>
- * generic Maps of <code>String</code> or any <code>Externalizable</code> type, i.e. <code>Map&lt;String, Externalizable&gt;</code> or <code>Map&lt;Externalizable, String&gt;</code>
+ * generic Lists or Sets of some <code>Number</code> types, i.e. <code>List&lt;Integer&gt;</code> or <code>Set&lt;Long&gt;</code>
+ * </li><li>
+ * generic Maps of <code>String</code>, some <code>Number</code> types, or any <code>Externalizable</code> type, i.e.
+ * <code>Map&lt;String, Externalizable&gt;</code> or <code>Map&lt;Externalizable, Long&gt;</code>
  * </li>
  * </ul>
  * Currently unsupported (i.e. slow and not compatible with {@link util.dump.stream.SingleTypeObjectStreamProvider})
  * are multi-dimensional primitive arrays, any array of <code>Numbers</code>, multi-dim <code>String</code> or
- * <code>Date</code> arrays, and <code>Maps</code>.
+ * <code>Date</code> arrays.
  * </li><li>
  * Any type to be externalized must have a public nullary constructor. This applies to all fields and their dependant instances,
  * i.e. for all <code>Collections</code> and all <code>Externalizables</code>. Beware that instances like the ones created with 
@@ -191,27 +206,35 @@ public interface ExternalizableBean extends Externalizable {
                j++;
             }
 
+            FieldType ft;
             FieldAccessor f = null;
-            FieldType ft = null;
             Class defaultType = null;
             if ( (fieldIndexes[j] & 0xff) == fieldIndex ) {
+               final FieldType fft = ft = fieldTypes[j];
                f = fieldAccessors[j];
-               ft = fieldTypes[j];
                defaultType = defaultTypes[j];
                if ( fieldTypeId != ft._id ) {
                   if ( fieldTypeId == FieldType.EnumOld._id && ft._id == FieldType.Enum._id ) {
                      ft = FieldType.EnumOld;
                   } else if ( fieldTypeId == FieldType.EnumSetOld._id && ft._id == FieldType.EnumSet._id ) {
                      ft = FieldType.EnumSetOld;
-                  } else if ( CLASS_CHANGED_INCOMPATIBLY.get(getClass()) == null ) {
-                     LoggerFactory.getLogger(getClass()).error("The field type of index " + fieldIndex + //
-                           " in " + getClass().getSimpleName() + //
+                  } else if ( fieldTypeId == FieldType.SetOfStrings._id && ft._id == FieldType.Set._id ) {
+                     ft = FieldType.SetOfStrings;
+                  } else if ( fieldTypeId == FieldType.ListOfStrings._id && ft._id == FieldType.List._id ) {
+                     ft = FieldType.ListOfStrings;
+                  } else if ( fieldTypeId == FieldType.Set._id && ft._id == FieldType.SetOfStrings._id ) {
+                     ft = FieldType.Set;
+                  } else if ( fieldTypeId == FieldType.List._id && ft._id == FieldType.ListOfStrings._id ) {
+                     ft = FieldType.List;
+                  } else if ( Boolean.TRUE.equals(CLASS_CHANGED_INCOMPATIBLY.computeIfAbsent(getClass(), clazz -> {
+                     LoggerFactory.getLogger(clazz).error("The field type of index " + fieldIndex + //
+                           " in " + clazz.getSimpleName() + //
                            " appears to have changed from " + FieldType.forId(fieldTypeId) + //
-                           " (version in dump) to " + ft + " (current class version)." + //
+                           " (version in dump) to " + fft + " (current class version)." + //
                            " This change breaks downward compatibility, see JavaDoc for details." + //
                            " This warning will appear only once.");
-                     CLASS_CHANGED_INCOMPATIBLY.put(getClass(), Boolean.TRUE);
-
+                     return Boolean.TRUE;
+                  })) ) {
                      // read it without exception, but ignore the data
                      ft = FieldType.forId(fieldTypeId);
                      f = null;
@@ -319,88 +342,56 @@ public interface ExternalizableBean extends Externalizable {
                break;
             }
             case Integer: {
-               Integer d = null;
-               boolean isNotNull = in.readBoolean();
-               if ( isNotNull ) {
-                  d = in.readInt();
-               }
+               Integer d = readInteger(in);
                if ( f != null ) {
                   f.set(this, d);
                }
                break;
             }
             case Boolean: {
-               Boolean d = null;
-               boolean isNotNull = in.readBoolean();
-               if ( isNotNull ) {
-                  d = in.readBoolean();
-               }
+               Boolean d = readBoolean(in);
                if ( f != null ) {
                   f.set(this, d);
                }
                break;
             }
             case Byte: {
-               Byte d = null;
-               boolean isNotNull = in.readBoolean();
-               if ( isNotNull ) {
-                  d = in.readByte();
-               }
+               Byte d = readByte(in);
                if ( f != null ) {
                   f.set(this, d);
                }
                break;
             }
             case Character: {
-               Character d = null;
-               boolean isNotNull = in.readBoolean();
-               if ( isNotNull ) {
-                  d = in.readChar();
-               }
+               Character d = readCharacter(in);
                if ( f != null ) {
                   f.set(this, d);
                }
                break;
             }
             case Double: {
-               Double d = null;
-               boolean isNotNull = in.readBoolean();
-               if ( isNotNull ) {
-                  d = in.readDouble();
-               }
+               Double d = readDouble(in);
                if ( f != null ) {
                   f.set(this, d);
                }
                break;
             }
             case Float: {
-               Float d = null;
-               boolean isNotNull = in.readBoolean();
-               if ( isNotNull ) {
-                  d = in.readFloat();
-               }
+               Float d = readFloat(in);
                if ( f != null ) {
                   f.set(this, d);
                }
                break;
             }
             case Long: {
-               Long d = null;
-               boolean isNotNull = in.readBoolean();
-               if ( isNotNull ) {
-                  d = in.readLong();
-               }
+               Long d = readLong(in);
                if ( f != null ) {
                   f.set(this, d);
                }
                break;
             }
             case Short: {
-               Short d = null;
-               boolean isNotNull = in.readBoolean();
-               if ( isNotNull ) {
-                  d = in.readShort();
-               }
+               Short d = readShort(in);
                if ( f != null ) {
                   f.set(this, d);
                }
@@ -642,20 +633,14 @@ public interface ExternalizableBean extends Externalizable {
                }
                break;
             }
-            case ListOfExternalizables: {
-               readCollectionOfExternalizables(in, f, defaultType, config._defaultGenericTypes0[j], this, config);
+            case List:
+            case Set: {
+               readCollection(in, f, defaultType, config._defaultGenericTypes0[j], this, config);
                break;
             }
-            case ListOfStrings: {
-               readCollectionOfStrings(in, f, defaultType, this, config);
-               break;
-            }
-            case SetOfExternalizables: {
-               readCollectionOfExternalizables(in, f, defaultType, config._defaultGenericTypes0[j], this, config);
-               break;
-            }
+            case ListOfStrings:
             case SetOfStrings: {
-               readCollectionOfStrings(in, f, defaultType, this, config);
+               readCollection(in, f, defaultType, String.class, this, config);
                break;
             }
             case ExternalizableArray: {
@@ -915,66 +900,42 @@ public interface ExternalizableBean extends Externalizable {
             }
             case Integer: {
                Integer s = (Integer)f.get(this);
-               out.writeBoolean(s != null);
-               if ( s != null ) {
-                  out.writeInt(s);
-               }
+               writeInteger(out, s);
                break;
             }
             case Boolean: {
                Boolean s = (Boolean)f.get(this);
-               out.writeBoolean(s != null);
-               if ( s != null ) {
-                  out.writeBoolean(s);
-               }
+               writeBoolean(out, s);
                break;
             }
             case Byte: {
                Byte s = (Byte)f.get(this);
-               out.writeBoolean(s != null);
-               if ( s != null ) {
-                  out.writeByte(s);
-               }
+               writeByte(out, s);
                break;
             }
             case Character: {
                Character s = (Character)f.get(this);
-               out.writeBoolean(s != null);
-               if ( s != null ) {
-                  out.writeChar(s);
-               }
+               writeCharacter(out, s);
                break;
             }
             case Double: {
                Double s = (Double)f.get(this);
-               out.writeBoolean(s != null);
-               if ( s != null ) {
-                  out.writeDouble(s);
-               }
+               writeDouble(out, s);
                break;
             }
             case Float: {
                Float s = (Float)f.get(this);
-               out.writeBoolean(s != null);
-               if ( s != null ) {
-                  out.writeFloat(s);
-               }
+               writeFloat(out, s);
                break;
             }
             case Long: {
                Long s = (Long)f.get(this);
-               out.writeBoolean(s != null);
-               if ( s != null ) {
-                  out.writeLong(s);
-               }
+               writeLong(out, s);
                break;
             }
             case Short: {
                Short s = (Short)f.get(this);
-               out.writeBoolean(s != null);
-               if ( s != null ) {
-                  out.writeShort(s);
-               }
+               writeShort(out, s);
                break;
             }
             case BigDecimal: {
@@ -1147,20 +1108,14 @@ public interface ExternalizableBean extends Externalizable {
                }
                break;
             }
-            case ListOfExternalizables: {
-               writeListOfExternalizables(out, f, defaultType, _config._defaultGenericTypes0[i], this);
+            case List:
+            case Set: {
+               writeCollection(out, f, defaultType, _config._defaultGenericTypes0[i], this);
                break;
             }
-            case ListOfStrings: {
-               writeListOfStrings(out, f, defaultType, this);
-               break;
-            }
-            case SetOfExternalizables: {
-               writeSetOfExternalizables(out, f, defaultType, _config._defaultGenericTypes0[i], this);
-               break;
-            }
+            case ListOfStrings:
             case SetOfStrings: {
-               writeSetOfStrings(out, f, defaultType, this);
+               writeCollection(out, f, defaultType, String.class, this);
                break;
             }
             case ExternalizableArray: {
