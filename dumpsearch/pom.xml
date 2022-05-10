@@ -5,12 +5,11 @@
    <groupId>mkr</groupId>
    <artifactId>util-dumpsearch</artifactId>
    <name>mkr util dumpsearch</name>
-   <version>1.20211012.1</version>
 
    <parent>
       <groupId>mkr</groupId>
       <artifactId>dump-pom</artifactId>
-      <version>1.20211012.1</version>
+      <version>1.20220509.1</version>
    </parent>
 
    <dependencies>

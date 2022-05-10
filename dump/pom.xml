@@ -3,13 +3,12 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
    <modelVersion>4.0.0</modelVersion>
    <artifactId>util-dump</artifactId>
-   <version>1.20211012.1</version>
    <name>mkr util dump</name>
 
    <parent>
       <groupId>mkr</groupId>
       <artifactId>dump-pom</artifactId>
-      <version>1.20211012.1</version>
+      <version>1.20220509.1</version>
    </parent>
 
    <dependencies>
