@@ -16,7 +16,7 @@
       <dependency>
          <groupId>mkr</groupId>
          <artifactId>util-dump</artifactId>
-         <version>1.20211012.1</version>
+         <version>${pom.version}</version>
       </dependency>
       <dependency>
          <groupId>org.apache.lucene</groupId>
