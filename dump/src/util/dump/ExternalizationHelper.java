@@ -1087,8 +1087,6 @@ class ExternalizationHelper {
       private void addFieldInfo( List<FieldInfo> fieldInfos, externalize annotation, FieldAccessor fieldAccessor, Class type, String fieldName ) {
          FieldInfo fi = new FieldInfo();
          fi._fieldAccessor = fieldAccessor;
-         fi._fieldType = getFieldType(fi, type);
-         fi.setDefaultType(type, fi._fieldAccessor, fi._fieldType, annotation);
 
          byte index = annotation.value();
          for ( FieldInfo ffi : fieldInfos ) {
@@ -1097,6 +1095,10 @@ class ExternalizationHelper {
             }
          }
          fi._fieldIndex = index;
+
+         fi._fieldType = getFieldType(fi, type);
+         fi.setDefaultType(type, fi._fieldAccessor, fi._fieldType, annotation);
+
          fieldInfos.add(fi);
       }
 
