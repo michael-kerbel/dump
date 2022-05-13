@@ -218,7 +218,7 @@ class ExternalizationHelper {
             case 2:
                return List.of(instanceReader.get(), instanceReader.get());
             }
-         case "java.util.ImmutableCollections$ListM":
+         case "java.util.ImmutableCollections$ListN":
             d = new ArrayList<>(size);
             containerType = ContainerType.ImmutableList;
             break;
