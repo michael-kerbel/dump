@@ -753,7 +753,7 @@ public interface ExternalizableBean extends Externalizable {
                break;
             }
             case Map: {
-               readMap(in, f, defaultTypes[i], config._defaultGenericTypes0[i], config._defaultGenericTypes1[i], this, config);
+               readMap(in, f, defaultType, config._defaultGenericTypes0[j], config._defaultGenericTypes1[j], this, config);
                break;
             }
             case Padding: {
