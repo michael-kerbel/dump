@@ -88,10 +88,10 @@ import util.dump.stream.SingleTypeObjectOutputStream;
  * This interface provides default implementations for <code>Externalizable</code>.<p/>
  *
  * All you have to do is implement this interface with your bean (without actually providing readExternal or writeExternal)
- * and add the <code>@</code>{@link externalize} annotation for each field or getter setter pair. This annotation has a 
+ * and add the <code>@</code>{@link externalize} annotation for each field or getter setter pair. This annotation has a
  * parameter where you set unique, non-reusable indexes.
  *
- * The (de-)serialization works even with different revisions of your bean. It is both downward and upward compatible, 
+ * The (de-)serialization works even with different revisions of your bean. It is both downward and upward compatible,
  * i.e. you can add and remove fields or getter setter pairs as you like and your binary representation will
  * stay readable by both the new and the old version of your bean.<p/>
  *
@@ -100,17 +100,17 @@ import util.dump.stream.SingleTypeObjectOutputStream;
  * Cyclic references in the object graph are not handled (yet)! E.g. a field containing an Externalizable, which references
  * the root instance, will lead to a StackOverflowError. While this is a serious limitation, in real life it doesn't
  * happen too often. In most cases, you can work around this issue, by not externalizing such fields multiple times
- * and wiring them by hand, after externalization. Overwrite <code>readExternal()</code> to do so. 
+ * and wiring them by hand, after externalization. Overwrite <code>readExternal()</code> to do so.
  * </li><li>
- * Downward and upward compatibility means, that while the externalization does not fail, unknown fields are ignored, 
- * and unknown Enum values are set to null or left out in EnumSets. 
+ * Downward and upward compatibility means, that while the externalization does not fail, unknown fields are ignored,
+ * and unknown Enum values are set to null or left out in EnumSets.
  * </li><li>
  * Downward and upward compatibility will not work, if you reuse indexes between different revisions of your bean,
  * i.e. you may never change the field type or any of the externalize.default*Types of a field annotated with a given index.
  * </li><li>
  * While externalization with this method is about 3-6 times faster than serialization (depending on the amount
  * of non-primitive or array members), hand written externalization is still about 40% faster, because no reflection
- * is used and upwards/downwards compatibility is not taken care of. This method of serialization is a bit faster 
+ * is used and upwards/downwards compatibility is not taken care of. This method of serialization is a bit faster
  * than Google's protobuffers in most cases. For optimal performance use jre 1.6+ and the <code>-server</code> switch.
  * </li><li>
  * All types are allowed for your members, but if your member is not included in the following list of supported
@@ -128,7 +128,7 @@ import util.dump.stream.SingleTypeObjectOutputStream;
  * </li><li>
  * single and two-dimensional arrays of any <code>Externalizable</code>
  * </li><li>
- * generic Lists or Sets of any <code>Externalizable</code> type, i.e. <code>List&lt;Externalizable&gt;</code> or 
+ * generic Lists or Sets of any <code>Externalizable</code> type, i.e. <code>List&lt;Externalizable&gt;</code> or
  * <code>Set&lt;Externalizable&gt;</code>
  * </li><li>
  * generic Lists or Sets of <code>String</code> type, i.e. <code>List&lt;String&gt;</code> or <code>Set&lt;String&gt;</code>
@@ -144,17 +144,17 @@ import util.dump.stream.SingleTypeObjectOutputStream;
  * <code>Date</code> arrays.
  * </li><li>
  * Any type to be externalized must have a public nullary constructor. This applies to all fields and their dependant instances,
- * i.e. for all <code>Collections</code> and all <code>Externalizables</code>. Beware that instances like the ones created with 
+ * i.e. for all <code>Collections</code> and all <code>Externalizables</code>. Beware that instances like the ones created with
  * <code>Collections.synchronizedSet(.)</code> do not have a public constructor.
  * </li><li>
- * For all <code>Collections</code> only the type and the included data is externalized. Something like a custom comparator in 
- * a <code>TreeSet</code> gets lost.  
+ * For all <code>Collections</code> only the type and the included data is externalized. Something like a custom comparator in
+ * a <code>TreeSet</code> gets lost.
  * </li><li>
  * While annotated fields can be any of public, protected, package protected or private, annotated methods must be public.
  * </li><li>
  * Unless the system property <code>ExternalizableBean.USE_UNSAFE_FIELD_ACCESSORS</code> is set to <code>false</code>
- * a daring hack is used for making field access using reflection faster. That's why you should annotate fields rather than 
- * methods, unless you need some transformation before or after serialization. 
+ * a daring hack is used for making field access using reflection faster. That's why you should annotate fields rather than
+ * methods, unless you need some transformation before or after serialization.
  * </li>
  * </ul>
  * @see externalize
