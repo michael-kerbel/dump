@@ -50,15 +50,15 @@ import org.slf4j.LoggerFactory;
 import gnu.trove.list.TByteList;
 import gnu.trove.list.array.TByteArrayList;
 import gnu.trove.set.hash.TLongHashSet;
-import util.dump.cache.SoftLRUCache;
 import util.dump.ExternalizableBean.externalizationVersion;
 import util.dump.UniqueIndex.DuplicateKeyException;
+import util.dump.cache.SoftLRUCache;
+import util.dump.io.IOUtils;
 import util.dump.sort.InfiniteSorter;
 import util.dump.stream.AesCrypter;
 import util.dump.stream.Compression;
 import util.dump.stream.ObjectStreamProvider;
 import util.dump.stream.SingleTypeObjectStreamProvider;
-import util.dump.io.IOUtils;
 import util.dump.time.StopWatch;
 
 
@@ -773,7 +773,7 @@ public class Dump<E> implements DumpInput<E> {
                   for ( DumpIndex<E> index : _indexes ) {
                      index.update(pos, oldItem, newItem);
                   }
-                  if ( _cache != null ) {
+                  if ( _cache != null && _cache.containsKey(pos) ) {
                      _cache.put(pos, newBytes);
                   }
                   return oldItem;
