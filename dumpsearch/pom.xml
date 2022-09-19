@@ -9,7 +9,7 @@
    <parent>
       <groupId>mkr</groupId>
       <artifactId>dump-pom</artifactId>
-      <version>1.20220530.1</version>
+      <version>1.20220919.1</version>
    </parent>
 
    <dependencies>
