@@ -48,8 +48,6 @@ class ExternalizationHelper {
    private static final Set<Class<?>> IMPLEMENTED_GENERICS = Set.of(Boolean.class, Byte.class, Character.class, Short.class, Integer.class, Long.class,
          Float.class, Double.class, String.class, Enum.class);
 
-   private static final long serialVersionUID = -1816997029156670474L;
-
    static boolean USE_UNSAFE_FIELD_ACCESSORS = true;
 
    private static final Map<Class, ClassConfig> CLASS_CONFIGS = new ConcurrentHashMap<>();
@@ -1263,8 +1261,7 @@ class ExternalizationHelper {
 
             if ( getter != null ) {
                for ( FieldInfo ffi : fieldInfos ) {
-                  if ( ffi._fieldAccessor instanceof MethodFieldAccessor ) {
-                     MethodFieldAccessor mfa = (MethodFieldAccessor)ffi._fieldAccessor;
+                  if ( ffi._fieldAccessor instanceof MethodFieldAccessor mfa ) {
                      if ( mfa.getGetter().equals(getter) ) {
                         continue methodLoop;
                      }
@@ -1285,10 +1282,9 @@ class ExternalizationHelper {
                   throw new RuntimeException(_class + " extends ExternalizableBean, but the annotated getter method " + getter.getName()
                         + " has no appropriate setter with the correct parameter.");
                }
-            } else if ( setter != null ) {
+            } else {
                for ( FieldInfo ffi : fieldInfos ) {
-                  if ( ffi._fieldAccessor instanceof MethodFieldAccessor ) {
-                     MethodFieldAccessor mfa = (MethodFieldAccessor)ffi._fieldAccessor;
+                  if ( ffi._fieldAccessor instanceof MethodFieldAccessor mfa ) {
                      if ( mfa.getSetter().equals(setter) ) {
                         continue methodLoop;
                      }
