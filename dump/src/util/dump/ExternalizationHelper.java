@@ -1201,7 +1201,7 @@ class ExternalizationHelper {
                for ( FieldInfo ffi : fieldInfos ) {
                   if ( ffi._fieldAccessor instanceof MethodFieldAccessor ) {
                      MethodFieldAccessor mfa = (MethodFieldAccessor)ffi._fieldAccessor;
-                     if ( mfa.getGetter().getName().equals(getter.getName()) ) {
+                     if ( mfa.getGetter().equals(getter) ) {
                         continue methodLoop;
                      }
                   }
@@ -1236,7 +1236,7 @@ class ExternalizationHelper {
                for ( FieldInfo ffi : fieldInfos ) {
                   if ( ffi._fieldAccessor instanceof MethodFieldAccessor ) {
                      MethodFieldAccessor mfa = (MethodFieldAccessor)ffi._fieldAccessor;
-                     if ( mfa.getSetter().getName().equals(setter.getName()) ) {
+                     if ( mfa.getSetter().equals(setter) ) {
                         continue methodLoop;
                      }
                   }
