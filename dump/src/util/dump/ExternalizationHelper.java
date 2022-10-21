@@ -1315,9 +1315,6 @@ class ExternalizationHelper {
 
             externalize getterAnnotation = getter.getAnnotation(externalize.class);
             externalize setterAnnotation = setter.getAnnotation(externalize.class);
-            if ( getterAnnotation == null && setterAnnotation == null ) {
-               continue;
-            }
             if ( getterAnnotation != null && setterAnnotation != null && getterAnnotation.value() != setterAnnotation.value() ) {
                throw new RuntimeException(_class + " extends ExternalizableBean, but the getter/setter pair " + getter.getName()
                      + " has different indexes in the externalize annotations.");
