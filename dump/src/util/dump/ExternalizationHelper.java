@@ -1033,6 +1033,61 @@ class ExternalizationHelper {
 
    static class ClassConfig {
 
+      private static Method findGetter( Method[] methods, String name, Class<?> returnType ) throws NoSuchMethodException {
+         for ( Method m : methods ) {
+            if ( !m.getName().equals(name) ) {
+               continue;
+            }
+            if ( !isGetter(m, returnType) ) {
+               continue;
+            }
+            return m;
+         }
+         throw new NoSuchMethodException();
+      }
+
+      private static Method findSetter( Method[] methods, String name, Class<?> parameterType ) throws NoSuchMethodException {
+         for ( Method m : methods ) {
+            if ( !m.getName().equals(name) ) {
+               continue;
+            }
+            if ( !isSetter(m, parameterType) ) {
+               continue;
+            }
+            return m;
+         }
+         throw new NoSuchMethodException();
+      }
+
+      private static boolean isGetter( Method m, Class<?> returnType ) {
+         if ( m.getParameterTypes().length != 0 ) {
+            return false;
+         }
+         if ( !m.getReturnType().equals(returnType) ) {
+            return false;
+         }
+         return isGetter(m);
+      }
+
+      private static boolean isGetter( Method m ) {
+         return m.getName().startsWith("get") || (m.getName().startsWith("is") && (m.getReturnType() == boolean.class || m.getReturnType() == Boolean.class));
+      }
+
+      private static boolean isSetter( Method m, Class<?> parameterType ) {
+         Class<?>[] parameterTypes = m.getParameterTypes();
+         if ( parameterTypes.length != 1 ) {
+            return false;
+         }
+         if ( !parameterTypes[0].equals(parameterType) ) {
+            return false;
+         }
+         return isSetter(m);
+      }
+
+      private static boolean isSetter( Method m ) {
+         return m.getName().startsWith("set");
+      }
+
       Class           _class;
       ClassLoader     _classLoader;
       FieldAccessor[] _fieldAccessors;
@@ -1158,13 +1213,16 @@ class ExternalizationHelper {
          Class c = _class;
          while ( c != Object.class ) {
             for ( Field f : c.getDeclaredFields() ) {
-               int mod = f.getModifiers();
-               if ( Modifier.isFinal(mod) || Modifier.isStatic(mod) ) {
-                  continue;
-               }
                externalize annotation = f.getAnnotation(externalize.class);
                if ( annotation == null ) {
                   continue;
+               }
+
+               int mod = f.getModifiers();
+               if ( Modifier.isStatic(mod) || Modifier.isFinal(mod) ) {
+                  throw new RuntimeException(
+                        _class + " extends ExternalizableBean, but the annotated field " + f.getType().getTypeName() + " " + f.getName() + " is" //
+                              + (Modifier.isStatic(mod) ? " static" : "") + (Modifier.isFinal(mod) ? " final" : "") + ".");
                }
 
                if ( !Modifier.isPublic(mod) ) {
@@ -1180,18 +1238,24 @@ class ExternalizationHelper {
       }
 
       private void initFromMethods( List<FieldInfo> fieldInfos ) {
+         final Method[] methods = _class.getMethods();
+
          methodLoop:
-         for ( Method m : _class.getMethods() ) {
-            int mod = m.getModifiers();
-            if ( Modifier.isStatic(mod) ) {
+         for ( Method m : methods ) {
+            externalize annotation = m.getAnnotation(externalize.class);
+            if ( annotation == null ) {
                continue;
             }
 
+            int mod = m.getModifiers();
+            if ( Modifier.isStatic(mod) ) {
+               throw new RuntimeException(_class + " extends ExternalizableBean, but the annotated method " + m.getName() + " is  static.");
+            }
+
             Method getter = null, setter = null;
-            if ( m.getName().startsWith("get") || (m.getName().startsWith("is") && (m.getReturnType() == boolean.class
-                  || m.getReturnType() == Boolean.class)) ) {
+            if ( isGetter(m) ) {
                getter = m;
-            } else if ( m.getName().startsWith("set") ) {
+            } else if ( isSetter(m) ) {
                setter = m;
             } else {
                continue;
@@ -1209,28 +1273,17 @@ class ExternalizationHelper {
 
                Class type = getter.getReturnType();
                if ( getter.getParameterTypes().length > 0 ) {
-                  externalize getterAnnotation = getter.getAnnotation(externalize.class);
-                  if ( getterAnnotation != null ) {
-                     throw new RuntimeException(
-                           _class + " extends ExternalizableBean, but the annotated getter method " + getter.getName() + " has a parameter.");
-                  } else {
-                     continue;
-                  }
+                  throw new RuntimeException(_class + " extends ExternalizableBean, but the annotated getter method " + getter.getName() + " has a parameter.");
                }
 
                try {
-                  String name = getter.getName();
-                  name = getter.getName().startsWith("is") ? name.substring(2) : name.substring(3);
-                  setter = _class.getMethod("set" + name, type);
+                  final String getterName = getter.getName();
+                  final String propertyName = getterName.startsWith("is") ? getterName.substring(2) : getterName.substring(3);
+                  setter = findSetter(methods, "set" + propertyName, type);
                }
                catch ( NoSuchMethodException e ) {
-                  externalize getterAnnotation = getter.getAnnotation(externalize.class);
-                  if ( getterAnnotation != null ) {
-                     throw new RuntimeException(_class + " extends ExternalizableBean, but the annotated getter method " + getter.getName()
-                           + " has no appropriate setter with the correct parameter.");
-                  } else {
-                     continue;
-                  }
+                  throw new RuntimeException(_class + " extends ExternalizableBean, but the annotated getter method " + getter.getName()
+                        + " has no appropriate setter with the correct parameter.");
                }
             } else if ( setter != null ) {
                for ( FieldInfo ffi : fieldInfos ) {
@@ -1243,39 +1296,24 @@ class ExternalizationHelper {
                }
 
                if ( setter.getParameterTypes().length != 1 ) {
-                  externalize setterAnnotation = setter.getAnnotation(externalize.class);
-                  if ( setterAnnotation != null ) {
-                     throw new RuntimeException(
-                           _class + " extends ExternalizableBean, but the annotated setter method " + setter.getName() + " does not have a single parameter.");
-                  } else {
-                     continue;
-                  }
+                  throw new RuntimeException(
+                        _class + " extends ExternalizableBean, but the annotated setter method " + setter.getName() + " does not have a single parameter.");
                }
                Class type = setter.getParameterTypes()[0];
 
                try {
-                  String prefix = (type == boolean.class || type == Boolean.class) ? "is" : "get";
-                  getter = _class.getMethod(prefix + setter.getName().substring(3));
+                  final String prefix = (type == boolean.class || type == Boolean.class) ? "is" : "get";
+                  final String propertyName = setter.getName().substring(3);
+                  getter = findGetter(methods, prefix + propertyName, type);
                }
                catch ( NoSuchMethodException e ) {
-                  externalize setterAnnotation = setter.getAnnotation(externalize.class);
-                  if ( setterAnnotation != null ) {
-                     throw new RuntimeException(
-                           _class + " extends ExternalizableBean, but the annotated setter method " + setter.getName() + " has no appropriate getter.");
-                  } else {
-                     continue;
-                  }
+                  throw new RuntimeException(
+                        _class + " extends ExternalizableBean, but the annotated setter method " + setter.getName() + " has no appropriate getter.");
                }
 
                if ( getter.getReturnType() != type ) {
-                  externalize setterAnnotation = setter.getAnnotation(externalize.class);
-                  externalize getterAnnotation = getter.getAnnotation(externalize.class);
-                  if ( getterAnnotation != null || setterAnnotation != null ) {
-                     throw new RuntimeException(_class + " extends ExternalizableBean, but the annotated setter method " + setter.getName()
-                           + " has no getter with the correct return type.");
-                  } else {
-                     continue;
-                  }
+                  throw new RuntimeException(_class + " extends ExternalizableBean, but the annotated setter method " + setter.getName()
+                        + " has no getter with the correct return type.");
                }
             }
 
@@ -1288,7 +1326,6 @@ class ExternalizationHelper {
                throw new RuntimeException(_class + " extends ExternalizableBean, but the getter/setter pair " + getter.getName()
                      + " has different indexes in the externalize annotations.");
             }
-            externalize annotation = getterAnnotation == null ? setterAnnotation : getterAnnotation;
 
             FieldAccessor fieldAccessor = new MethodFieldAccessor(getter, setter);
             Class type = getter.getReturnType();
