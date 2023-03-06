@@ -1102,6 +1102,12 @@ public class Dump<E> implements DumpInput<E> {
                deleteFile(_deletionsFile);
                break;
             }
+            case RewriteDump: {
+               StopWatch t = new StopWatch();
+               _log.warn("externalizationVersion in dump {} does not match current version {}, will rewrite dump files", dumpVersion, newVersion);
+               prune();
+               _log.info("...rewrote dump {} in {}", _dumpFile, t);
+            }
             }
          }
 

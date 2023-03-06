@@ -1259,7 +1259,8 @@ public interface ExternalizableBean extends Externalizable {
 
    enum OnIncompatibleVersion {
       DeleteDump,
-      RenameDump
+      RenameDump,
+      RewriteDump
    }
 
 }

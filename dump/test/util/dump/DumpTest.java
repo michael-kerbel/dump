@@ -2,6 +2,7 @@ package util.dump;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static util.dump.ExternalizableBean.OnIncompatibleVersion.DeleteDump;
+import static util.dump.ExternalizableBean.OnIncompatibleVersion.RewriteDump;
 
 import java.io.File;
 import java.io.FileFilter;
@@ -372,7 +373,16 @@ public class DumpTest {
          n++;
       }
       assertThat(n).as("Dump was not deleted after version upgrade").isEqualTo(0);
+      v4Dump.add(new BeanVersion4(1));
       v4Dump.close();
+
+      Dump<BeanVersion5> v5Dump = new Dump<>(BeanVersion5.class, dumpFile);
+      n = 0;
+      for ( BeanVersion5 b : v5Dump ) {
+         n++;
+      }
+      assertThat(n).as("Dump was not rewritten after version upgrade").isEqualTo(1);
+      v5Dump.close();
    }
 
    public static class Bean implements ExternalizableBean {
@@ -425,6 +435,20 @@ public class DumpTest {
       public BeanVersion4() {}
 
       public BeanVersion4( int id ) {
+         _id = id;
+      }
+   }
+
+
+   @externalizationVersion(version = 5, onIncompatibleVersion = RewriteDump)
+   public static class BeanVersion5 implements ExternalizableBean {
+
+      @externalize(1)
+      int _id;
+
+      public BeanVersion5() {}
+
+      public BeanVersion5( int id ) {
          _id = id;
       }
    }
