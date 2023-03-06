@@ -282,6 +282,10 @@ public abstract class DumpIndex<E> implements Closeable {
     * create or open index
     */
    protected void createOrLoad() {
+      createOrLoad(true);
+   }
+
+   private void createOrLoad( boolean retry ) {
 
       boolean indexInvalid = !_lookupFile.exists() || (_lookupFile.length() == 0 && _lookupFile.isFile()) || !checkMeta();
       if ( indexInvalid ) {
@@ -303,10 +307,15 @@ public abstract class DumpIndex<E> implements Closeable {
       } else {
          try {
             load();
-         } catch (RuntimeException e) {
+         }
+         catch ( RuntimeException e ) {
             LOG.warn("Failed to load index, will delete and init from dump", e);
-            deleteAllIndexFiles();
-            initFromDump();
+            if ( retry ) {
+               deleteAllIndexFiles();
+               createOrLoad(false);
+            } else {
+               throw e;
+            }
          }
       }
    }
