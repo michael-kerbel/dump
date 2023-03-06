@@ -1207,12 +1207,7 @@ public class Dump<E> implements DumpInput<E> {
    }
 
    private void setExternalizationVersionInMetaData() {
-      externalizationVersion version = _beanClass.getAnnotation(externalizationVersion.class);
-      if ( version != null ) {
-         _metaData.put("externalizationVersion", "" + version.version());
-      } else {
-         _metaData.remove("externalizationVersion");
-      }
+      _metaData.put("externalizationVersion", "" + getVersionFromCode());
    }
 
    /**
