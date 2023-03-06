@@ -1088,7 +1088,7 @@ public class Dump<E> implements DumpInput<E> {
 
          String dumpVersionString = _metaData.get("externalizationVersion");
          int dumpVersion = dumpVersionString == null ? 0 : Integer.parseInt(dumpVersionString);
-         if ( dumpVersion != newVersion ) {
+         if ( dumpVersion != newVersion && _dumpFile.exists() ) {
             switch ( version.onIncompatibleVersion() ) {
             case RenameDump: {
                _log.warn("externalizationVersion in dump {} does not match current version {}, will rename old dump files", dumpVersion, newVersion);

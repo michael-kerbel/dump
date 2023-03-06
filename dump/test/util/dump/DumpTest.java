@@ -385,6 +385,35 @@ public class DumpTest {
       v5Dump.close();
    }
 
+   @Test
+   public void testVersionUpdateWithoutPreexistingFiles() throws Exception {
+      File dumpFile = new File("DumpTest.dmp");
+      Dump<Bean> dump = new Dump<>(Bean.class, dumpFile);
+      dump.close();
+      dumpFile.delete();
+
+      Dump<BeanVersion2> v2Dump = new Dump<>(BeanVersion2.class, dumpFile);
+      File oldDumpFile = new File("DumpTest.dmp.version0");
+      assertThat(oldDumpFile).as("Dump was renamed after version upgrade on nonexistent file").doesNotExist();
+      v2Dump.add(new BeanVersion2(1));
+      v2Dump.close();
+      dumpFile.delete();
+
+      Dump<BeanVersion3> v3Dump = new Dump<>(BeanVersion3.class, dumpFile);
+      oldDumpFile = new File("DumpTest.dmp.version2");
+      assertThat(oldDumpFile).as("Dump was renamed after version upgrade on nonexistent file").doesNotExist();
+      v3Dump.close();
+      dumpFile.delete();
+
+      Dump<BeanVersion4> v4Dump = new Dump<>(BeanVersion4.class, dumpFile);
+      v4Dump.close();
+      dumpFile.delete();
+
+      Dump<BeanVersion5> v5Dump = new Dump<>(BeanVersion5.class, dumpFile);
+      v5Dump.close();
+      dumpFile.delete();
+   }
+
    public static class Bean implements ExternalizableBean {
 
       @externalize(1)
