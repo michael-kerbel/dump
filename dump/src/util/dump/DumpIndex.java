@@ -301,7 +301,13 @@ public abstract class DumpIndex<E> implements Closeable {
          // rebuild index if it is not current
          initFromDump();
       } else {
-         load();
+         try {
+            load();
+         } catch (RuntimeException e) {
+            LOG.warn("Failed to load index, will delete and init from dump", e);
+            deleteAllIndexFiles();
+            initFromDump();
+         }
       }
    }
 
