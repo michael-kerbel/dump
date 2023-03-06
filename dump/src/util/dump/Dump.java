@@ -1202,7 +1202,7 @@ public class Dump<E> implements DumpInput<E> {
    }
 
    private void resetMeta() {
-      _sequence = (long)(Math.random() * 1000000);
+      _sequence++;
       _metaData.clear();
    }
 
