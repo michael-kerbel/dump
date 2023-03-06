@@ -291,10 +291,6 @@ public class Dump<E> implements DumpInput<E> {
          _reader = new DumpReader<>(_dumpFile, false, _streamProvider);
 
          initMeta();
-         externalizationVersion version = (externalizationVersion)_beanClass.getAnnotation(externalizationVersion.class);
-         if ( version != null ) {
-            _metaData.put("externalizationVersion", "" + version.version());
-         }
          writeDictionary();
 
          _updateByteOutput = new ByteArrayOutputStream(1024);
@@ -1080,41 +1076,54 @@ public class Dump<E> implements DumpInput<E> {
       }
    }
 
-   private void checkVersion() throws IOException {
-      externalizationVersion version = _beanClass.getAnnotation(externalizationVersion.class);
-      if ( version != null ) {
-         int newVersion = version.version();
-         initMeta();
+   private int getVersionFromDump() {
+      String dumpVersionString = _metaData.get("externalizationVersion");
+      return dumpVersionString == null ? 0 : Integer.parseInt(dumpVersionString);
+   }
 
-         String dumpVersionString = _metaData.get("externalizationVersion");
-         int dumpVersion = dumpVersionString == null ? 0 : Integer.parseInt(dumpVersionString);
-         if ( dumpVersion != newVersion && _dumpFile.exists() ) {
-            switch ( version.onIncompatibleVersion() ) {
+   private int getVersionFromCode() {
+      externalizationVersion version = _beanClass.getAnnotation(externalizationVersion.class);
+      return version == null ? 0 : version.version();
+   }
+
+   private ExternalizableBean.OnIncompatibleVersion getOnIncompatibleVersion() {
+      externalizationVersion version = _beanClass.getAnnotation(externalizationVersion.class);
+      return version == null ? ExternalizableBean.OnIncompatibleVersion.RenameDump : version.onIncompatibleVersion();
+   }
+
+   private void checkVersion() throws IOException {
+      initMeta();
+      int codeVersion = getVersionFromCode();
+      int dumpVersion = getVersionFromDump();
+      if ( dumpVersion != codeVersion ) {
+         if ( _dumpFile.exists() ) {
+            switch ( getOnIncompatibleVersion() ) {
             case RenameDump: {
-               _log.warn("externalizationVersion in dump {} does not match current version {}, will rename old dump files", dumpVersion, newVersion);
+               _log.warn("externalizationVersion in dump {} does not match current version {}, will rename old dump files", dumpVersion, codeVersion);
                renameFile(_dumpFile, new File(_dumpFile.getAbsolutePath() + ".version" + dumpVersion));
                renameFile(_deletionsFile, new File(_deletionsFile.getAbsolutePath() + ".version" + dumpVersion));
+               resetMeta();
                break;
             }
             case DeleteDump: {
-               _log.warn("externalizationVersion in dump {} does not match current version {}, will delete old dump files", dumpVersion, newVersion);
+               _log.warn("externalizationVersion in dump {} does not match current version {}, will delete old dump files", dumpVersion, codeVersion);
                deleteFile(_dumpFile);
                deleteFile(_deletionsFile);
+               resetMeta();
                break;
             }
             case RewriteDump: {
                StopWatch t = new StopWatch();
-               _log.warn("externalizationVersion in dump {} does not match current version {}, will rewrite dump files", dumpVersion, newVersion);
-               prune();
+               _log.warn("externalizationVersion in dump {} does not match current version {}, will rewrite dump files", dumpVersion, codeVersion);
+               prune(); // has its own way of meta invalidation
                _log.info("...rewrote dump {} in {}", _dumpFile, t);
             }
             }
          }
-
-         // reset meta
-         _sequence = (long)(Math.random() * 1000000);
-         _metaData.clear();
       }
+
+      setExternalizationVersionInMetaData();
+      writeMeta();
    }
 
    private void deleteFile( File file ) throws IOException {
@@ -1190,6 +1199,20 @@ public class Dump<E> implements DumpInput<E> {
          throw new IOException("Failed to rename file " + currentFile);
       }
       _log.info("renamed file " + currentFile + " to " + newFile);
+   }
+
+   private void resetMeta() {
+      _sequence = (long)(Math.random() * 1000000);
+      _metaData.clear();
+   }
+
+   private void setExternalizationVersionInMetaData() {
+      externalizationVersion version = _beanClass.getAnnotation(externalizationVersion.class);
+      if ( version != null ) {
+         _metaData.put("externalizationVersion", "" + version.version());
+      } else {
+         _metaData.remove("externalizationVersion");
+      }
    }
 
    /**

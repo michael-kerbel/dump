@@ -120,7 +120,7 @@ public class DumpTest {
       File dumpFile = new File("DumpTest.dmp");
       try (Dump<Bean> dump = new Dump<>(Bean.class, dumpFile)) {
          for ( Bean bean : dump ) {
-            Assert.assertTrue("Element returned during iteration of empty dump", false);
+            Assert.fail("Element returned during iteration of empty dump");
             Assert.assertNotNull("Element returned during iteration of empty dump", bean);
          }
       }
@@ -381,7 +381,8 @@ public class DumpTest {
       for ( BeanVersion5 b : v5Dump ) {
          n++;
       }
-      assertThat(n).as("Dump was not rewritten after version upgrade").isEqualTo(1);
+      assertThat(n).as("Dump did not retain contents during version upgrade").isEqualTo(1);
+      assertThat(v5Dump.getMetaValue("externalizationVersion")).as("Dump was not rewritten after version upgrade").isEqualTo("5");
       v5Dump.close();
    }
 
