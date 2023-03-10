@@ -70,6 +70,7 @@ import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.EnumSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -243,6 +244,8 @@ public interface ExternalizableBean extends Externalizable {
             } else { // unknown field
                ft = FieldType.forId(fieldTypeId);
             }
+
+            Objects.requireNonNull(ft, "Invalid field type " + (fieldTypeId & 0xff) + " for field index " + fieldIndex);
 
             if ( ft.isLengthDynamic() ) {
                int size = in.readInt();
