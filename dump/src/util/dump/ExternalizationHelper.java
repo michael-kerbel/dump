@@ -574,23 +574,31 @@ class ExternalizationHelper {
       Collection<?> d = (Collection<?>)f.get(thisInstance);
       out.writeBoolean(d != null);
       if ( d != null ) {
-         writeCollectionContainer(out, defaultType, d);
+         int size = writeCollectionContainer(out, defaultType, d);
+         int written = 0;
          Class[] lastNonDefaultClass = new Class[1];
          ThrowingConsumer<Object, Exception> writer = getGenericWriter(out, defaultGenericType, lastNonDefaultClass);
          for ( Object n : d ) {
             writer.accept(n);
+            written++;
+         }
+
+         if (size != written) {
+            throw new IllegalStateException("Collection size " + size + " does not match number of written items: " + written);
          }
       }
    }
 
-   static void writeCollectionContainer( ObjectOutput out, Class defaultType, Collection d ) throws IOException {
+   static int writeCollectionContainer( ObjectOutput out, Class defaultType, Collection d ) throws IOException {
       Class collectionClass = d.getClass();
       boolean isDefaultType = collectionClass.equals(defaultType);
       out.writeBoolean(isDefaultType);
-      out.writeInt(d.size());
+      int size = d.size();
+      out.writeInt(size);
       if ( !isDefaultType ) {
          out.writeUTF(collectionClass.getName());
       }
+      return size;
    }
 
    static void writeDate( ObjectOutput out, Date s ) throws IOException {
